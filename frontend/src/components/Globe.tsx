@@ -400,7 +400,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         // Signal beam cone: tip at satellite, base spreading at surface
         const beamHeight = satRadius - 1.003;
         const beamMid    = new THREE.Vector3().addVectors(pos, surfacePos).multiplyScalar(0.5);
-        const coneGeo    = new THREE.ConeGeometry(0.108, beamHeight, 24, 1, true);
+        const coneGeo    = new THREE.ConeGeometry(0.108, beamHeight, 6, 1, true);
         const coneMat    = new THREE.MeshBasicMaterial({
           color: colorHex, transparent: true, opacity: 0.03,
           side: THREE.DoubleSide, depthWrite: false,
@@ -415,9 +415,9 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         // ── Archiver (sphere + halo ring) ────────────────────────────────────
         const radius =
           node.status === 'synced'  ? 1.025 :
-          node.status === 'lagging' ? 1.06  :
-          node.status === 'orange'  ? 1.10  :
-          node.status === 'offline' ? 1.16  : 1.025;
+          node.status === 'lagging' ? 1.030  :
+          node.status === 'orange'  ? 1.035  :
+          node.status === 'offline' ? 1.040  : 1.025;
 
         const mat = new THREE.MeshBasicMaterial({ color: colorHex });
         const dot = new THREE.Mesh(archiverDotGeo, mat);

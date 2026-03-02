@@ -63,6 +63,8 @@ export async function binarySearchLastBlock(
         const tipExists = await checkBlockExists(ip, port, tip);
         if (tipExists) {
           lo = tip;
+          const moreBlocks = await checkBlockExists(ip, port, tip+2);
+          if (!moreBlocks) return lo;
           // do not break — node may have blocks beyond the global tip
         }
       }
@@ -99,7 +101,7 @@ export async function discoverNode(
 
   // Relay: only recent blocks around the current tip
   const tip = getTip() > 0 ? getTip() : ALGO_TIP_ESTIMATE;
-  const searchHi = tip + 2_000;
+  const searchHi = tip + 10;
 
   // Confirm the relay is alive at all
   const aliveCheck = await checkBlockExists(ip, port, Math.max(0, tip - 5_000));
