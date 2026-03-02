@@ -311,6 +311,7 @@ body::after {
 .node-grid-section {
   flex-shrink: 0;
   padding: 6px 8px 0;
+  overflow-y: scroll;
 }
 
 .node-grid-section-label {

@@ -84,14 +84,14 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     globeGroup.add(sphere);
 
     // ── Atmosphere glow ───────────────────────────────────────────────────────
-    const atmoGeo = new THREE.SphereGeometry(1.05, 32, 32);
-    const atmoMat = new THREE.MeshPhongMaterial({
-      color: 0x0044aa,
-      transparent: true,
-      opacity: 0.06,
-      side: THREE.BackSide,
-    });
-    globeGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
+    // const atmoGeo = new THREE.SphereGeometry(1.05, 32, 32);
+    // const atmoMat = new THREE.MeshPhongMaterial({
+    //   color: 0x0044aa,
+    //   transparent: true,
+    //   opacity: 0.26,
+    //   side: THREE.BackSide,
+    // });
+    // globeGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
 
     // ── Latitude / longitude grid ─────────────────────────────────────────────
     const gridMat = new THREE.LineBasicMaterial({
@@ -293,7 +293,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         let diff = ((-scanAngle - nodeAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
         if (diff > Math.PI) diff -= 2 * Math.PI; // normalise to (-π, π]
 
-        const intensity = Math.max(0, 1 - Math.abs(diff) / 0.22); // 0.22 rad ≈ 12.6°
+        const intensity = Math.max(0, 1 - Math.abs(diff + 0.18) / 0.22); // peak 0.18 rad behind leading edge
         const baseHex = node.type === 'archiver'
           ? ARCHIVER_COLOR
           : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
@@ -347,7 +347,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       group.remove(child);
     }
 
-    const dotGeo = new THREE.SphereGeometry(0.018, 8, 8);
+    const archiverDotGeo = new THREE.SphereGeometry(0.018, 8, 8);
 
     for (const node of nodes) {
       if (node.lat === 0 && node.lng === 0) continue;
@@ -356,28 +356,79 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         ? ARCHIVER_COLOR
         : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
 
-      const radius =
-        node.status === 'synced'  ? 1.025 :
-        node.status === 'lagging' ? 1.06  :
-        node.status === 'orange'  ? 1.10  :
-        node.status === 'offline' ? 1.16  : 1.025;
+      if (node.type === 'relay') {
+        // ── Satellite-style relay ────────────────────────────────────────────
+        const satRadius =
+          node.status === 'synced'  ? 1.10 :
+          node.status === 'lagging' ? 1.15 :
+          node.status === 'orange'  ? 1.20 :
+          node.status === 'offline' ? 1.26 : 1.10;
 
-      const mat = new THREE.MeshBasicMaterial({ color: colorHex });
-      const dot = new THREE.Mesh(dotGeo, mat);
+        const pos        = latLngToVec3(node.lat, node.lng, satRadius);
+        const surfacePos = latLngToVec3(node.lat, node.lng, 1.003);
 
-      const pos = latLngToVec3(node.lat, node.lng, radius);
-      dot.position.copy(pos);
-      group.add(dot);
-      nodeMapRef.current.set(dot, node);
+        // Tangent-space orientation: Z = outward, X = east-west, Y = north-south
+        const outward = pos.clone().normalize();
+        const rawEast = new THREE.Vector3().crossVectors(outward, new THREE.Vector3(0, 1, 0));
+        const eastDir = rawEast.lengthSq() > 0.01
+          ? rawEast.normalize()
+          : new THREE.Vector3(1, 0, 0);
+        const northDir = new THREE.Vector3().crossVectors(eastDir, outward).normalize();
+        const satQuat = new THREE.Quaternion().setFromRotationMatrix(
+          new THREE.Matrix4().makeBasis(eastDir, northDir, outward),
+        );
 
-      // Halo ring for archivers
-      if (node.type === 'archiver') {
+        // Flat satellite body (appears as square when viewed from outside)
+        const bodyGeo = new THREE.BoxGeometry(0.013, 0.013, 0.004);
+        const bodyMat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const body    = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.copy(pos);
+        body.quaternion.copy(satQuat);
+        group.add(body);
+        nodeMapRef.current.set(body, node);
+
+        // Solar panel wings (extend east-west)
+        const wingGeo = new THREE.BoxGeometry(0.020, 0.003, 0.003);
+        const wingMat = new THREE.MeshBasicMaterial({ color: 0x7a7a24 });
+        for (const side of [1, -1]) {
+          const wing = new THREE.Mesh(wingGeo, wingMat);
+          wing.position.copy(pos).addScaledVector(eastDir, side * 0.016);
+          wing.quaternion.copy(satQuat);
+          group.add(wing);
+        }
+
+        // Signal beam cone: tip at satellite, base spreading at surface
+        const beamHeight = satRadius - 1.003;
+        const beamMid    = new THREE.Vector3().addVectors(pos, surfacePos).multiplyScalar(0.5);
+        const coneGeo    = new THREE.ConeGeometry(0.108, beamHeight, 24, 1, true);
+        const coneMat    = new THREE.MeshBasicMaterial({
+          color: colorHex, transparent: true, opacity: 0.03,
+          side: THREE.DoubleSide, depthWrite: false,
+        });
+        const cone = new THREE.Mesh(coneGeo, coneMat);
+        cone.position.copy(beamMid);
+        // Align cone's +Y axis with the outward (satellite→surface is -outward, so apex at +Y = satellite side)
+        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
+        group.add(cone);
+
+      } else {
+        // ── Archiver (sphere + halo ring) ────────────────────────────────────
+        const radius =
+          node.status === 'synced'  ? 1.025 :
+          node.status === 'lagging' ? 1.06  :
+          node.status === 'orange'  ? 1.10  :
+          node.status === 'offline' ? 1.16  : 1.025;
+
+        const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const dot = new THREE.Mesh(archiverDotGeo, mat);
+        const pos = latLngToVec3(node.lat, node.lng, radius);
+        dot.position.copy(pos);
+        group.add(dot);
+        nodeMapRef.current.set(dot, node);
+
         const ringGeo = new THREE.RingGeometry(0.025, 0.035, 16);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x00aaff,
-          transparent: true,
-          opacity: 0.5,
-          side: THREE.DoubleSide,
+          color: 0x00aaff, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.position.copy(pos);
