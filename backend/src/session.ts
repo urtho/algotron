@@ -160,7 +160,6 @@ export class Session {
 
   private recomputeStatuses() {
     for (const [id, node] of this.nodes) {
-      if (node.status === 'offline') continue;
       const newStatus = this.computeStatus(node);
       if (newStatus !== node.status) {
         node.status = newStatus;
@@ -171,12 +170,12 @@ export class Session {
 
   private computeStatus(node: NodeState): NodeStatus {
     if (node.checkingBoot) return 'unknown';
-    if (node.status === 'offline') return 'offline';
     if (this.tipBlock === 0) return 'unknown';
 
     const lag = this.tipBlock - node.lastBlock;
     if (lag <= 1) return 'synced';   // ≤1 block behind → green
     if (lag <= 3) return 'lagging';  // 2–3 blocks behind → yellow
+    if (node.status === 'offline') return 'offline';
     return 'orange';                  // >3 blocks behind → orange
   }
 

@@ -131,6 +131,29 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), eqMat));
     }
 
+    // ── Scanning meridian ray ─────────────────────────────────────────────────
+    const TRAIL_COUNT = 10;
+    const TRAIL_SPREAD_DEG = 12;
+    const scanGroup = new THREE.Group();
+    globeGroup.add(scanGroup);
+
+    for (let i = 0; i < TRAIL_COUNT; i++) {
+      const t = i / (TRAIL_COUNT - 1);
+      const lngOffset = -t * TRAIL_SPREAD_DEG;
+      const opacity = Math.pow(1 - t, 1.4) * 0.82;
+      if (opacity < 0.01) continue;
+
+      const pts: THREE.Vector3[] = [];
+      for (let lat = -87; lat <= 87; lat += 3) {
+        pts.push(latLngToVec3(lat, lngOffset, 1.004));
+      }
+
+      scanGroup.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity }),
+      ));
+    }
+
     // ── Node dots group ───────────────────────────────────────────────────────
     const dotsGroup = new THREE.Group();
     globeGroup.add(dotsGroup);
@@ -248,8 +271,11 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     container.addEventListener('pointercancel',onPointerUp);
     container.addEventListener('pointerleave', onPointerLeave);
 
-    // ── Slow rotation ─────────────────────────────────────────────────────────
+    // ── Slow rotation & scan ──────────────────────────────────────────────────
     let lastTime = performance.now();
+    let scanAngle = 0;
+    const _tempColor  = new THREE.Color();
+    const _whiteColor = new THREE.Color(0xffffff);
 
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
@@ -257,6 +283,26 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
       if (!isDragging) globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
+      scanAngle += (2 * Math.PI / 2.8) * dt; // one full revolution per 2.8 s
+      scanGroup.rotation.y = scanAngle;
+
+      // ── Scanner glow: brighten & enlarge nodes under the leading meridian ───
+      for (const [dot, node] of nodeMapRef.current) {
+        // Node's angle in globeGroup x-z plane: lng=0 → angle 0, lng=90 → -π/2
+        const nodeAngle = -node.lng * (Math.PI / 180);
+        let diff = ((-scanAngle - nodeAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        if (diff > Math.PI) diff -= 2 * Math.PI; // normalise to (-π, π]
+
+        const intensity = Math.max(0, 1 - Math.abs(diff) / 0.22); // 0.22 rad ≈ 12.6°
+        const baseHex = node.type === 'archiver'
+          ? ARCHIVER_COLOR
+          : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
+        const mat = (dot as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        _tempColor.set(baseHex);
+        mat.color.lerpColors(_tempColor, _whiteColor, intensity * 0.75);
+        (dot as THREE.Mesh).scale.setScalar(1 + intensity * 0.5);
+      }
+
       renderer.render(scene, camera);
     };
     animate();

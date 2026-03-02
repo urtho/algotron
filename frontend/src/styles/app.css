@@ -429,7 +429,7 @@ body::after {
 }
 
 /* Lag parenthesis inherits color from status border, dim the parens part */
-.node-block-lagging { color: var(--text-dim); text-shadow: 0 0 4px rgba(255,255,0,0.4); }
+.node-block-lagging { /* color: var(--text-dim); text-shadow: 0 0 4px rgba(255,255,0,0.4); */ }
 
 .node-scanning {
   font-size: 9px;
