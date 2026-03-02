@@ -7,6 +7,7 @@ import { resolveSrvHosts } from './dns.js';
 import type { DnsProgress } from './dns.js';
 import { geolocateIPs } from './geoip.js';
 import { Session } from './session.js';
+import { nodeMonitor } from './nodeMonitor.js';
 import type { NodeState } from './types.js';
 
 const PORT = 3001;
@@ -34,11 +35,13 @@ wss.on('connection', (ws: WebSocket) => {
 
   ws.on('close', () => {
     console.log(`[WS] Session closed: ${sessionId}`);
+    nodeMonitor.removeClient(session);
     session.cleanup();
   });
 
   ws.on('error', (err) => {
     console.error(`[WS] Session error ${sessionId}:`, err.message);
+    nodeMonitor.removeClient(session);
     session.cleanup();
   });
 
@@ -103,21 +106,16 @@ async function runBoot(session: Session) {
   await session.bootLog(`[GEO] Geolocating ${allIPs.length} unique IPs via ip-api.com ...`);
   const geoMap = await geolocateIPs(allIPs);
 
-  // for (const [ip, geo] of geoMap) {
-  //   await session.bootLog(`[GEO] ${ip} → ${geo.city}, ${geo.country} (${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)})`);
-  // }
-
   // ── Build NodeState objects ───────────────────────────────────────────────
 
   const nodeStates: NodeState[] = [];
 
   const EMPTY_GEO = { lat: 0, lng: 0, country: '', countryCode: '', city: '' };
 
-  let nodeIndex = 0;
   for (const n of relayNodes) {
     const geo = geoMap.get(n.ip) ?? EMPTY_GEO;
     nodeStates.push({
-      id: `relay-${nodeIndex++}`,
+      id: `relay-${n.ip}:${n.port}`,
       type: 'relay',
       label: n.host.split('.')[0],
       host: n.host,
@@ -138,7 +136,7 @@ async function runBoot(session: Session) {
   for (const n of archiverNodes) {
     const geo = geoMap.get(n.ip) ?? EMPTY_GEO;
     nodeStates.push({
-      id: `archiver-${nodeIndex++}`,
+      id: `archiver-${n.ip}:${n.port}`,
       type: 'archiver',
       label: n.host.split('.')[0],
       host: n.host,
@@ -156,11 +154,8 @@ async function runBoot(session: Session) {
     });
   }
 
-  const archiverStates = nodeStates.filter(n => n.type === 'archiver');
-  const relayStates    = nodeStates.filter(n => n.type === 'relay');
-
   await session.bootLog('');
-  await session.bootLog(`[BOOT] Phase 3: Boot ${archiverStates.length} archivers → discover tip → boot ${relayStates.length} relays`);
+  await session.bootLog(`[BOOT] Phase 3: Node monitoring — ${nodeStates.length} nodes`);
   await session.bootLog('[BOOT] Boot complete. Launching dashboard...');
   await session.bootLog('');
   await new Promise<void>(r => setTimeout(r, 1000));
@@ -168,13 +163,11 @@ async function runBoot(session: Session) {
   // Signal frontend to switch to dashboard
   session.send({ type: 'boot_complete' });
 
-  // ── Start health monitors: archivers first so tip is known before relays ─
+  // Register with shared monitor (sends snapshot of already-known nodes to this client)
+  nodeMonitor.addClient(session);
 
-  void (async () => {
-    await Promise.allSettled(archiverStates.map(node => session.bootNode(node)));
-    await Promise.allSettled(relayStates.map(node => session.bootNode(node)));
-    session.log('[MONITOR] All initial node discoveries completed', 'info');
-  })();
+  // Merge newly-discovered nodes into shared monitoring pool
+  nodeMonitor.mergeNodes(nodeStates);
 }
 
 // ─── Start server ─────────────────────────────────────────────────────────────
