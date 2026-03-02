@@ -8,6 +8,12 @@ interface Props {
   healthyArchivers: number;
 }
 
+// GeoJSON geometry types we care about
+interface GeoPolygon      { type: 'Polygon';      coordinates: number[][][];  }
+interface GeoMultiPolygon { type: 'MultiPolygon'; coordinates: number[][][][]; }
+type GeoGeometry = GeoPolygon | GeoMultiPolygon | { type: string };
+interface GeoFeature { geometry: GeoGeometry; }
+
 // Convert geographic coordinates to 3-D position on a unit sphere
 function latLngToVec3(lat: number, lng: number, r = 1): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -34,6 +40,9 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
   const dotsGroupRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const frameRef = useRef<number>(0);
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+  const nodeMapRef = useRef<Map<THREE.Object3D, NodeState>>(new Map());
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   // ── Initial Three.js setup (runs once) ──────────────────────────────────────
   useEffect(() => {
@@ -134,6 +143,111 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     sun.position.set(5, 3, 5);
     scene.add(sun);
 
+    // ── Continent contours ────────────────────────────────────────────────────
+    let destroyed = false;
+    const landMat = new THREE.LineBasicMaterial({
+      color: 0x00662e,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    void fetch('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_land.geojson')
+      .then(r => r.json())
+      .then((geojson: { features: GeoFeature[] }) => {
+        if (destroyed) return;
+        const contourGroup = new THREE.Group();
+
+        function addRing(coords: number[][]) {
+          if (coords.length < 2) return;
+          const pts = coords.map(([lng, lat]) => latLngToVec3(lat, lng, 1.002));
+          contourGroup.add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(pts),
+            landMat,
+          ));
+        }
+
+        for (const f of geojson.features) {
+          const g = f.geometry;
+          if (g.type === 'Polygon') {
+            for (const ring of (g as GeoPolygon).coordinates) addRing(ring);
+          } else if (g.type === 'MultiPolygon') {
+            for (const poly of (g as GeoMultiPolygon).coordinates)
+              for (const ring of poly) addRing(ring);
+          }
+        }
+
+        globeGroup.add(contourGroup);
+      });
+
+    // ── Drag-to-rotate ────────────────────────────────────────────────────────
+    let isDragging = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      isDragging = true;
+      lastPointerX = e.clientX;
+      lastPointerY = e.clientY;
+      container.setPointerCapture(e.pointerId);
+      container.style.cursor = 'grabbing';
+      if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (isDragging) {
+        const dx = e.clientX - lastPointerX;
+        const dy = e.clientY - lastPointerY;
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+        globeGroup.rotation.y += dx * 0.005;
+        globeGroup.rotation.x += dy * 0.005;
+        globeGroup.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, globeGroup.rotation.x));
+        return;
+      }
+
+      // Raycast to find hovered node dot
+      const rect = container.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width)  *  2 - 1,
+        ((e.clientY - rect.top)  / rect.height) * -2 + 1,
+      );
+      raycasterRef.current.setFromCamera(mouse, camera);
+      const hits = raycasterRef.current.intersectObjects(
+        dotsGroupRef.current ? dotsGroupRef.current.children : [],
+        false,
+      );
+      const tooltip = tooltipRef.current;
+      if (!tooltip) return;
+      if (hits.length > 0) {
+        const node = nodeMapRef.current.get(hits[0].object);
+        if (node) {
+          tooltip.textContent = `${node.label} · ${node.status}`;
+          tooltip.style.left = `${e.clientX - rect.left + 14}px`;
+          tooltip.style.top  = `${e.clientY - rect.top  - 10}px`;
+          tooltip.style.display = 'block';
+        }
+      } else {
+        tooltip.style.display = 'none';
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      isDragging = false;
+      container.releasePointerCapture(e.pointerId);
+      container.style.cursor = 'grab';
+    };
+
+    const onPointerLeave = () => {
+      if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+    };
+
+    container.style.cursor = 'grab';
+    container.addEventListener('pointerdown',  onPointerDown);
+    container.addEventListener('pointermove',  onPointerMove);
+    container.addEventListener('pointerup',    onPointerUp);
+    container.addEventListener('pointercancel',onPointerUp);
+    container.addEventListener('pointerleave', onPointerLeave);
+
     // ── Slow rotation ─────────────────────────────────────────────────────────
     let lastTime = performance.now();
 
@@ -142,7 +256,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
-      globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
+      if (!isDragging) globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
       renderer.render(scene, camera);
     };
     animate();
@@ -158,8 +272,14 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     ro.observe(container);
 
     return () => {
+      destroyed = true;
       cancelAnimationFrame(frameRef.current);
       ro.disconnect();
+      container.removeEventListener('pointerdown',  onPointerDown);
+      container.removeEventListener('pointermove',  onPointerMove);
+      container.removeEventListener('pointerup',    onPointerUp);
+      container.removeEventListener('pointercancel',onPointerUp);
+      container.removeEventListener('pointerleave', onPointerLeave);
       renderer.dispose();
       renderer.domElement.remove();
       rendererRef.current = null;
@@ -173,6 +293,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     if (!group) return;
 
     // Clear existing dots
+    nodeMapRef.current.clear();
     while (group.children.length) {
       const child = group.children[0] as THREE.Mesh;
       child.geometry.dispose();
@@ -189,12 +310,19 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         ? ARCHIVER_COLOR
         : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
 
+      const radius =
+        node.status === 'synced'  ? 1.025 :
+        node.status === 'lagging' ? 1.06  :
+        node.status === 'orange'  ? 1.10  :
+        node.status === 'offline' ? 1.16  : 1.025;
+
       const mat = new THREE.MeshBasicMaterial({ color: colorHex });
       const dot = new THREE.Mesh(dotGeo, mat);
 
-      const pos = latLngToVec3(node.lat, node.lng, 1.025);
+      const pos = latLngToVec3(node.lat, node.lng, radius);
       dot.position.copy(pos);
       group.add(dot);
+      nodeMapRef.current.set(dot, node);
 
       // Halo ring for archivers
       if (node.type === 'archiver') {
@@ -224,6 +352,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         <span className="counter-label">ARCHIVERS</span>
       </div>
       <div className="globe-mount" ref={mountRef} />
+      <div ref={tooltipRef} className="globe-node-tooltip" style={{ display: 'none' }} />
     </div>
   );
 }

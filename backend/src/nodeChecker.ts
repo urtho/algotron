@@ -37,12 +37,16 @@ export async function checkBlockExists(ip: string, port: number, block: number):
 /**
  * Binary search: find the highest block number in [lo, hi] that exists.
  * Assumes blocks form a contiguous range up to some ceiling.
+ *
+ * At the end of each iteration, if the global tip (getTip()) has advanced
+ * past lo, probes that block directly and short-circuits if present.
  */
 export async function binarySearchLastBlock(
   ip: string,
   port: number,
   lo: number,
-  hi: number
+  hi: number,
+  getTip?: () => number
 ): Promise<number> {
   while (lo < hi) {
     const mid = Math.floor((lo + hi + 1) / 2);
@@ -51,6 +55,17 @@ export async function binarySearchLastBlock(
       lo = mid;
     } else {
       hi = mid - 1;
+    }
+
+    if (getTip) {
+      const tip = getTip();
+      if (tip > lo && tip <= hi) {
+        const tipExists = await checkBlockExists(ip, port, tip);
+        if (tipExists) {
+          lo = tip;
+          // do not break — node may have blocks beyond the global tip
+        }
+      }
     }
   }
   return lo;
@@ -65,11 +80,12 @@ export interface DiscoveryResult {
  * Full boot-time discovery for a single node.
  * Returns the first+last block the node has, or null if unreachable.
  * The caller must supply isArchiver based on which SRV record the node came from.
+ * getTip provides the live global chain tip for search short-circuiting.
  */
 export async function discoverNode(
   ip: string,
   port: number,
-  currentTip: number,
+  getTip: () => number,
   isArchiver: boolean
 ): Promise<DiscoveryResult | null> {
 
@@ -77,19 +93,19 @@ export async function discoverNode(
     // Archiver: blocks 0..N — confirm it's alive then binary search the ceiling
     const alive = await checkBlockExists(ip, port, 0);
     if (!alive) return null;
-    const lastBlock = await binarySearchLastBlock(ip, port, 0, 100_000_000);
+    const lastBlock = await binarySearchLastBlock(ip, port, 0, 100_000_000, getTip);
     return { firstBlock: 0, lastBlock };
   }
 
   // Relay: only recent blocks around the current tip
-  const tip = currentTip > 0 ? currentTip : ALGO_TIP_ESTIMATE;
+  const tip = getTip() > 0 ? getTip() : ALGO_TIP_ESTIMATE;
   const searchHi = tip + 2_000;
 
   // Confirm the relay is alive at all
   const aliveCheck = await checkBlockExists(ip, port, Math.max(0, tip - 5_000));
   if (!aliveCheck) return null;
 
-  const lastBlock = await binarySearchLastBlock(ip, port, Math.max(0, tip - 5_000), searchHi);
+  const lastBlock = await binarySearchLastBlock(ip, port, Math.max(0, tip - 5_000), searchHi, getTip);
 
   return { firstBlock: 0, lastBlock };
 }

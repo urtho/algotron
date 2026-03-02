@@ -219,6 +219,21 @@ body::after {
   height: 100%;
 }
 
+.globe-node-tooltip {
+  position: absolute;
+  background: rgba(0, 8, 18, 0.88);
+  border: 1px solid var(--green-dim);
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 20;
+  text-shadow: 0 0 6px var(--green);
+}
+
 .globe-mount canvas {
   display: block;
   width: 100% !important;
@@ -311,7 +326,6 @@ body::after {
   flex-wrap: wrap;
   gap: 6px;
   overflow-y: auto;
-  max-height: calc(50vh - 80px);
   padding-bottom: 6px;
   scrollbar-width: thin;
   scrollbar-color: var(--border2) transparent;
@@ -415,12 +429,7 @@ body::after {
 }
 
 /* Lag parenthesis inherits color from status border, dim the parens part */
-.node-block-lagging { color: var(--yellow); text-shadow: 0 0 4px rgba(255,255,0,0.4); }
-
-.node-block-range {
-  font-size: 9px;
-  color: var(--text-dim);
-}
+.node-block-lagging { color: var(--text-dim); text-shadow: 0 0 4px rgba(255,255,0,0.4); }
 
 .node-scanning {
   font-size: 9px;

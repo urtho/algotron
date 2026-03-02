@@ -65,7 +65,7 @@ export class Session {
     this.nodes.set(node.id, node);
     this.send({ type: 'node_discovered', node });
 
-    const result = await discoverNode(node.ip, node.port, this.tipBlock, node.type === 'archiver');
+    const result = await discoverNode(node.ip, node.port, () => this.tipBlock, node.type === 'archiver');
 
     if (!result) {
       this.patchNode(node.id, { status: 'offline', checkingBoot: false });
