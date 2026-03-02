@@ -57,7 +57,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-    camera.position.z = 2.8;
+    camera.position.z = 3.36;
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -360,9 +360,9 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         // ── Satellite-style relay ────────────────────────────────────────────
         const satRadius =
           node.status === 'synced'  ? 1.10 :
-          node.status === 'lagging' ? 1.15 :
-          node.status === 'orange'  ? 1.20 :
-          node.status === 'offline' ? 1.26 : 1.10;
+          node.status === 'lagging' ? 1.11 :
+          node.status === 'orange'  ? 1.12 :
+          node.status === 'offline' ? 1.13 : 1.10;
 
         const pos        = latLngToVec3(node.lat, node.lng, satRadius);
         const surfacePos = latLngToVec3(node.lat, node.lng, 1.003);

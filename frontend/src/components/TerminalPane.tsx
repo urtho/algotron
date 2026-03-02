@@ -18,13 +18,22 @@ function formatTime(ts: number): string {
 export function TerminalPane({ logs }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wasNearBottom = useRef(true);
 
+  // Track scroll position *before* new content arrives
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    // Only auto-scroll if already near bottom
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (isNearBottom) {
+    const onScroll = () => {
+      wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Auto-scroll using the pre-render near-bottom state
+  useEffect(() => {
+    if (wasNearBottom.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' });
     }
   }, [logs]);

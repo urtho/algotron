@@ -150,7 +150,7 @@ body::after {
 /* ── Dashboard layout ──────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
-  grid-template-columns: 40% 1fr;
+  grid-template-columns: 38% 1fr;
   height: 100vh;
   width: 100%;
   gap: 2px;
@@ -350,13 +350,13 @@ body::after {
 }
 
 .node-card--synced  { border-color: rgba(0,255,136,0.35); box-shadow: 0 0 6px rgba(0,255,136,0.07); }
-.node-card--lagging { border-color: rgba(255,255,0,0.3);  box-shadow: 0 0 6px rgba(255,255,0,0.06);  background: rgba(255,255,0,0.04); }
-.node-card--orange  { border-color: rgba(255,136,0,0.35); box-shadow: 0 0 6px rgba(255,136,0,0.07);  background: rgba(255,136,0,0.06); }
-.node-card--offline { border-color: rgba(255,34,34,0.3);  box-shadow: 0 0 6px rgba(255,34,34,0.06);  background: rgba(255,34,34,0.07); }
+.node-card--lagging { border-color: rgba(255,255,0,0.3);  box-shadow: 0 0 6px rgba(255,255,0,0.06);  background: rgba(255,255,0,0.14); }
+.node-card--orange  { border-color: rgba(255,136,0,0.35); box-shadow: 0 0 6px rgba(255,136,0,0.07);  background: rgba(255,136,0,0.16); }
+.node-card--offline { border-color: rgba(255,34,34,0.3);  box-shadow: 0 0 6px rgba(255,34,34,0.06);  background: rgba(255,34,34,0.17); }
 .node-card--unknown { border-color: var(--border); }
 
-.node-card--archiver { border-left: 2px solid var(--archiver-color); }
-.node-card--relay    { border-left: 2px solid var(--relay-color); }
+.node-card--archiver { border-left: 1px solid var(--archiver-color); }
+.node-card--relay    { border-left: 1px solid var(--relay-color); }
 
 .node-card-header {
   display: flex;

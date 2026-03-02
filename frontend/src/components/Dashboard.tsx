@@ -20,7 +20,7 @@ export function Dashboard({ state }: Props) {
       {/* ── Left panel: Globe ─────────────────────────────────── */}
       <div className="dashboard-left">
         <div className="dashboard-brand">
-          <span className="brand-title">ALGOTRON</span>
+          <span className="brand-title">ALGOTRON v0.1</span>
           <span className="brand-subtitle">ALGORAND MAINNET</span>
         </div>
         <Globe
