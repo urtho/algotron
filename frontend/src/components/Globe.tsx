@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import type { NodeState } from '../types/index.js';
+import { algoLogo } from './algologo.js';
 
 interface Props {
   nodes: NodeState[];
@@ -166,6 +167,27 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     sun.position.set(5, 3, 5);
     scene.add(sun);
 
+    // ── HUD: Algorand logo pinned to lower-left, independent of globe ─────────
+    // Logo geometry spans ~3.58 Three.js units; scale to ~80 screen pixels.
+    const LOGO_SCALE  = 22;
+    const LOGO_HALF   = (3.58 * LOGO_SCALE) / 2; // ≈ 39 px
+    const LOGO_MARGIN = 16;
+
+    const hudScene = new THREE.Scene();
+    hudScene.add(new THREE.AmbientLight(0x223344, 2.0));
+    const hudLight = new THREE.DirectionalLight(0x3399ff, 2.5);
+    hudLight.position.set(3, 4, 5);
+    hudScene.add(hudLight);
+
+    const hudCam = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 200);
+    hudCam.position.z = 100;
+
+    const logoGroup = algoLogo();
+    logoGroup.scale.setScalar(LOGO_SCALE);
+    logoGroup.rotation.x = 0.0;
+    logoGroup.position.set(-w / 2 + LOGO_MARGIN + LOGO_HALF, -h / 2 + LOGO_MARGIN + LOGO_HALF, 0);
+    hudScene.add(logoGroup);
+
     // ── Continent contours ────────────────────────────────────────────────────
     let destroyed = false;
     const landMat = new THREE.LineBasicMaterial({
@@ -283,6 +305,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
       if (!isDragging) globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
+      logoGroup.rotation.y -= 0.8 * dt; // ~1 revolution per 7.9 s
       scanAngle += (2 * Math.PI / 2.8) * dt; // one full revolution per 2.8 s
       scanGroup.rotation.y = scanAngle;
 
@@ -304,6 +327,12 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       }
 
       renderer.render(scene, camera);
+
+      // Render HUD (logo) on top without clearing the colour buffer
+      renderer.autoClear = false;
+      renderer.clearDepth();
+      renderer.render(hudScene, hudCam);
+      renderer.autoClear = true;
     };
     animate();
 
@@ -314,6 +343,13 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       renderer.setSize(nw, nh);
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
+      // Keep HUD camera and logo position in sync with canvas size
+      hudCam.left   = -nw / 2;
+      hudCam.right  =  nw / 2;
+      hudCam.top    =  nh / 2;
+      hudCam.bottom = -nh / 2;
+      hudCam.updateProjectionMatrix();
+      logoGroup.position.set(-nw / 2 + LOGO_MARGIN + LOGO_HALF, -nh / 2 + LOGO_MARGIN + LOGO_HALF, 0);
     });
     ro.observe(container);
 
