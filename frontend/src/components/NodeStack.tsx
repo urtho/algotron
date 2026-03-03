@@ -26,6 +26,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
   const clockRef      = useRef(0);    // oscillation time accumulator (seconds)
   const [planeOffset, setPlaneOffset] = useState(0);
   const lastScrollRef = useRef(0);    // throttle: ms timestamp of last plane shift
+  const hoverFrontRef = useRef(false); // true while mouse is over the front pane
 
   // Sort: archivers first, then relays; within each type by status priority
   const sorted = [...nodes].sort((a, b) => {
@@ -84,6 +85,17 @@ export function NodeStack({ nodes, tipBlock }: Props) {
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
   }, []);
+
+  // Auto-cycle forward every 5 s unless the mouse is hovering over the front pane
+  useEffect(() => {
+    if (planes.length <= 1) return;
+    const id = setInterval(() => {
+      if (!hoverFrontRef.current) {
+        setPlaneOffset(o => (o + 1) % planes.length);
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [planes.length]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
@@ -171,6 +183,8 @@ export function NodeStack({ nodes, tipBlock }: Props) {
                   ...(pi > 0 ? { top: 0, left: 0 } : {}),
                   transform: `translateZ(${centerZRef.current - relPos * Z_SPACING}px) scale(0.75)`,
                 }}
+                onMouseEnter={relPos === 0 ? () => { hoverFrontRef.current = true; } : undefined}
+                onMouseLeave={relPos === 0 ? () => { hoverFrontRef.current = false; } : undefined}
               >
                 {plane.map((node: NodeState) => (
                   <NodeCard key={node.id} node={node} tipBlock={tipBlock} />

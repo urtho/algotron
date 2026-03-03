@@ -70,6 +70,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
     // ── Globe sphere ──────────────────────────────────────────────────────────
     const globeGroup = new THREE.Group();
+    globeGroup.rotation.x = 30 * (Math.PI / 180); // tilt north pole toward viewer
     scene.add(globeGroup);
 
     const sphereGeo = new THREE.SphereGeometry(1, 64, 64);
