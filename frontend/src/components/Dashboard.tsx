@@ -1,5 +1,5 @@
 import { Globe } from './Globe.js';
-import { NodeGrid } from './NodeGrid.js';
+import { NodeStack } from './NodeStack.js';
 import { TerminalPane } from './TerminalPane.js';
 import type { AppState } from '../types/index.js';
 
@@ -33,7 +33,7 @@ export function Dashboard({ state }: Props) {
       {/* ── Right panel: monitors + log ───────────────────────── */}
       <div className="dashboard-right">
         <div className="dashboard-right-top">
-          <NodeGrid nodes={nodes} tipBlock={state.tipBlock} />
+          <NodeStack nodes={nodes} tipBlock={state.tipBlock} />
         </div>
         <div className="dashboard-right-bottom">
           <TerminalPane logs={state.logs} />

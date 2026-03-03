@@ -280,6 +280,66 @@ body::after {
   text-shadow: 0 0 6px var(--cyan);
 }
 
+/* ── Node stack (CSS 3-D planes) ───────────────────────────────────────────── */
+.node-stack-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.node-stack-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: rgba(0,204,255,0.03);
+}
+
+.node-stack-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+.node-stack-plane-count {
+  color: var(--cyan);
+  text-shadow: 0 0 4px var(--cyan);
+}
+
+/* Perspective container — all 3-D magic lives inside here */
+.node-stack-scene {
+  flex: 1;
+  perspective: 1000px;
+  perspective-origin: 50% 38%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+}
+
+.node-stack-scene:active { cursor: grabbing; }
+
+/* Rotating group — transform-style:preserve-3d threads 3-D context to children */
+.node-stack-group {
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+/* Each plane — 4-column card grid floating at its own Z depth */
+.node-stack-plane {
+  display: grid;
+  grid-template-columns: repeat(4, 100px);
+  gap: 6px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+}
+
 /* ── Node grid ─────────────────────────────────────────────────────────────── */
 .node-grid-container {
   display: flex;
@@ -349,14 +409,14 @@ body::after {
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-.node-card--synced  { border-color: rgba(0,255,136,0.35); box-shadow: 0 0 6px rgba(0,255,136,0.07); }
+.node-card--synced  { border-color: rgba(0,255,136,0.35); box-shadow: 0 0 6px rgba(0,255,136,0.07); background: rgba(255,255,255,0.05); }
 .node-card--lagging { border-color: rgba(255,255,0,0.3);  box-shadow: 0 0 6px rgba(255,255,0,0.06);  background: rgba(255,255,0,0.14); }
 .node-card--orange  { border-color: rgba(255,136,0,0.35); box-shadow: 0 0 6px rgba(255,136,0,0.07);  background: rgba(255,136,0,0.16); }
 .node-card--offline { border-color: rgba(255,34,34,0.3);  box-shadow: 0 0 6px rgba(255,34,34,0.06);  background: rgba(255,34,34,0.17); }
 .node-card--unknown { border-color: var(--border); }
 
-.node-card--archiver { border-left: 1px solid var(--archiver-color); }
-.node-card--relay    { border-left: 1px solid var(--relay-color); }
+.node-card--archiver { border-left: 2px solid rgba(0,170,255,0.7); }
+.node-card--relay    { border-left: 2px solid rgba(0,255,136,0.7); }
 
 .node-card-header {
   display: flex;
