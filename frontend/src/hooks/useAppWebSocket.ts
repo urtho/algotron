@@ -77,7 +77,8 @@ function reducer(state: AppState, action: AppAction): AppState {
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+const WS_URL = import.meta.env.VITE_WS_URL as string | undefined
+  ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
 const RECONNECT_DELAY = 3_000;
 
 export function useAppWebSocket(): AppState {
