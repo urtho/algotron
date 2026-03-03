@@ -344,6 +344,37 @@ body::after {
 
 .node-stack-scene:active { cursor: grabbing; }
 
+.node-stack-scroll-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  color: var(--text-dim);
+  pointer-events: auto;
+  cursor: default;
+}
+
+.node-stack-scroll-hint[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  background: var(--bg3);
+  color: var(--cyan);
+  border: 1px solid var(--border2);
+  padding: 3px 7px;
+  font-size: 14px;
+  font-family: var(--font);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.node-stack-scroll-hint[data-tooltip]:hover::after {
+  opacity: 1;
+}
+
 /* Rotating group — transform-style:preserve-3d threads 3-D context to children */
 .node-stack-group {
   transform-style: preserve-3d;
@@ -358,10 +389,10 @@ body::after {
   gap: 12px;
   padding: 20px;
   background: transparent;
-  border: 1px solid transparent;
+  border: 2px solid transparent;
   border-radius: 8px;
   will-change: transform;
-  transition: background 0.35s, border-color 0.35s;
+  transition: background 0.35s, border-color 0.35s, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 2× render resolution for sharpness under perspective distortion (plane is scale(0.5)) */
@@ -381,8 +412,8 @@ body::after {
 .node-stack-plane .node-block-num      { font-size: 18px; }
 .node-stack-plane .node-scanning       { font-size: 18px; }
 
-/* On hover of the front plane itself (pi=0, :first-child), make it less transparent */
-.node-stack-plane:first-child:hover {
+/* On hover of the current front plane, make it less transparent */
+.node-stack-plane--front:hover {
   background: rgba(0, 13, 26, 0.92);
   border-color: var(--border2);
 }
