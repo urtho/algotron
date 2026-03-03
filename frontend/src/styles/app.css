@@ -309,10 +309,25 @@ body::after {
   text-shadow: 0 0 4px var(--cyan);
 }
 
+/* Alert strip — non-green nodes shown above the 3-D scene */
+.node-stack-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 34, 34, 0.04);
+  flex-shrink: 0;
+  max-height: 128px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
 /* Perspective container — all 3-D magic lives inside here */
 .node-stack-scene {
   flex: 1;
-  perspective: 1000px;
+  perspective: 1800px;
   perspective-origin: 50% 38%;
   display: flex;
   align-items: center;
@@ -337,7 +352,15 @@ body::after {
   gap: 6px;
   padding: 10px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: background 0.35s, border-color 0.35s;
+}
+
+/* On hover of the front plane itself (pi=0, :first-child), make it less transparent */
+.node-stack-plane:first-child:hover {
+  background: rgba(0, 13, 26, 0.92);
+  border-color: var(--border2);
 }
 
 /* ── Node grid ─────────────────────────────────────────────────────────────── */

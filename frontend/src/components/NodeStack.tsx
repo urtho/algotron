@@ -106,6 +106,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
 
   const relayCount    = nodes.filter(n => n.type === 'relay').length;
   const archiverCount = nodes.filter(n => n.type === 'archiver').length;
+  const alertNodes    = sorted.filter(n => n.status !== 'synced');
 
   return (
     <div className="node-stack-wrapper">
@@ -123,6 +124,14 @@ export function NodeStack({ nodes, tipBlock }: Props) {
           TIP: <span className="tip-value">#{tipBlock.toLocaleString()}</span>
         </span>
       </div>
+
+      {alertNodes.length > 0 && (
+        <div className="node-stack-alerts">
+          {alertNodes.map(node => (
+            <NodeCard key={node.id} node={node} tipBlock={tipBlock} />
+          ))}
+        </div>
+      )}
 
       <div
         className="node-stack-scene"
