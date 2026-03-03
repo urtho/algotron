@@ -13,6 +13,11 @@ Discovers every relay and archiver node via DNS SRV records, geolocates them, an
 - **Status indicators** — synced / lagging / orange / offline based on lag from chain tip
 - **Boot terminal** — Encom-style animated discovery sequence on first load
 - **Multi-client** — new tabs receive an instant snapshot; no redundant polling
+- **Permissionless** — no APIs required 
+
+## Live instance
+
+https://algotron.algo.green
 
 ## Stack
 
