@@ -348,6 +348,7 @@ body::after {
 .node-stack-group {
   transform-style: preserve-3d;
   position: relative;
+  will-change: transform;
 }
 
 /* Each plane — 4-column card grid floating at its own Z depth */
@@ -359,6 +360,7 @@ body::after {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
+  will-change: transform;
   transition: background 0.35s, border-color 0.35s;
 }
 

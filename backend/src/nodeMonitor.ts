@@ -155,11 +155,13 @@ class NodeMonitor {
         const stall = (this.stallRounds.get(nodeId) ?? 0) + 1;
         this.stallRounds.set(nodeId, stall);
         if (stall > 10) {
+          if (node.status !== 'offline') {
+            this.broadcastLog(
+              `[${node.type.toUpperCase()}] ${node.label} stalled — marking offline`,
+              'warn',
+            );
+          }
           this.patchNode(nodeId, { status: 'offline' });
-          this.broadcastLog(
-            `[${node.type.toUpperCase()}] ${node.label} stalled — marking offline`,
-            'warn',
-          );
         }
       }
 
