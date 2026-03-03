@@ -4,7 +4,7 @@ Real-time Algorand mainnet monitoring dashboard with an Encom boardroom aestheti
 
 Discovers every relay and archiver node via DNS SRV records, geolocates them, and tracks their block heights live.
 
-![dashboard](docs/screenshot.png)
+[![Watch the video](https://img.youtube.com/vi/VQqEQATW-7w/maxresdefault.jpg)](https://youtu.be/VQqEQATW-7w)
 
 ## Features
 
