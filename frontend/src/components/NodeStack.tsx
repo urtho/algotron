@@ -12,7 +12,7 @@ const STATUS_ORDER: Record<string, number> = {
 };
 
 const Z_SPACING  = 90;   // px between consecutive planes
-const PLANE_SIZE = 20;   // 4 cols × 5 rows
+const PLANE_SIZE = 25;   // 5 cols × 5 rows
 
 export function NodeStack({ nodes, tipBlock }: Props) {
   const groupRef    = useRef<HTMLDivElement>(null);
@@ -152,7 +152,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
                 // differentiated only by translateZ in 3D space.
                 position: pi === 0 ? 'relative' : 'absolute',
                 ...(pi > 0 ? { top: 0, left: 0 } : {}),
-                transform: `translateZ(${centerZRef.current - pi * Z_SPACING}px)`,
+                transform: `translateZ(${centerZRef.current - pi * Z_SPACING}px) scale(0.75)`,
               }}
             >
               {plane.map(node => (

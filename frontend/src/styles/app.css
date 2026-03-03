@@ -286,6 +286,7 @@ body::after {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 .node-stack-header {
@@ -309,15 +310,19 @@ body::after {
   text-shadow: 0 0 4px var(--cyan);
 }
 
-/* Alert strip — non-green nodes shown above the 3-D scene */
+/* Alert strip — overlays the top of the 3-D scene without shifting it */
 .node-stack-alerts {
+  position: absolute;
+  top: 33px; /* sits just below the header */
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 34, 34, 0.04);
-  flex-shrink: 0;
+  background: rgba(0, 13, 26, 0.88);
   max-height: 128px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -348,14 +353,31 @@ body::after {
 /* Each plane — 4-column card grid floating at its own Z depth */
 .node-stack-plane {
   display: grid;
-  grid-template-columns: repeat(4, 100px);
-  gap: 6px;
-  padding: 10px;
+  grid-template-columns: repeat(5, 200px);
+  gap: 12px;
+  padding: 20px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: background 0.35s, border-color 0.35s;
 }
+
+/* 2× render resolution for sharpness under perspective distortion (plane is scale(0.5)) */
+.node-stack-plane .node-card {
+  width: 200px;
+  padding: 10px 14px;
+  border-radius: 6px;
+}
+.node-stack-plane .node-card--archiver { border-left-width: 4px; }
+.node-stack-plane .node-card--relay    { border-left-width: 4px; }
+.node-stack-plane .node-card-header    { gap: 8px; margin-bottom: 6px; }
+.node-stack-plane .node-type-badge     { font-size: 16px; padding: 0 8px; border-radius: 4px; line-height: 28px; }
+.node-stack-plane .node-label          { font-size: 22px; }
+.node-stack-plane .node-status-dot     { width: 14px; height: 14px; }
+.node-stack-plane .node-card-geo       { font-size: 20px; margin-bottom: 6px; gap: 6px; }
+.node-stack-plane .node-card-blocks    { gap: 2px; }
+.node-stack-plane .node-block-num      { font-size: 18px; }
+.node-stack-plane .node-scanning       { font-size: 18px; }
 
 /* On hover of the front plane itself (pi=0, :first-child), make it less transparent */
 .node-stack-plane:first-child:hover {
