@@ -1,6 +1,6 @@
 # Algotron
 
-Real-time Algorand mainnet monitoring dashboard with an Encom boardroom aesthetic.
+Real-time Algorand network monitoring dashboard with an Encom boardroom aesthetic.
 
 Discovers every relay and archiver node via DNS SRV records, geolocates them, and tracks their block heights live.
 
@@ -105,4 +105,4 @@ The backend sends six message types over the WebSocket:
 
 - Relay SRV: `_algobootstrap._tcp.mainnet.algorand.net`
 - Archiver SRV: `_archive._tcp.mainnet.algorand.net`
-- Block URL: `http://{ip}:{port}/v1/mainnet-v1.0/block/{block_base36}`
+- Block URL: `http://{ip}:{port}/v1/{network-id}/block/{block_base36}`

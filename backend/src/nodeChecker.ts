@@ -2,13 +2,15 @@
  * Block discovery and health checking for Algorand relay / archiver nodes.
  *
  * Block numbers are encoded as base-36 strings in the HTTP path:
- *   GET/HEAD http://{ip}:{port}/v1/mainnet-v1.0/block/{block_base36}
+ *   GET/HEAD http://{ip}:{port}/v1/{networkd_id}/block/{block_base36}
  *
  * Archiver: has all blocks from 0 upward.
  * Relay:    has a sliding window of ~20 000 recent blocks.
  */
 
-// Rough estimate for Algorand mainnet tip when the server starts.
+const NETWORK_ID = process.env.NETWORK_ID ?? "mainnet-v1.0"
+
+// Rough estimate for Algorand tip when the server starts.
 // Updated dynamically as we discover real block heights.
 const ALGO_TIP_ESTIMATE = 48_000_000;
 
@@ -16,7 +18,7 @@ const ALGO_TIP_ESTIMATE = 48_000_000;
 const REQUEST_TIMEOUT_MS = 6_000;
 
 function blockUrl(ip: string, port: number, block: number): string {
-  return `http://${ip}:${port}/v1/mainnet-v1.0/block/${block.toString(36)}`;
+  return `http://${ip}:${port}/v1/${NETWORK_ID}/block/${block.toString(36)}`;
 }
 
 /**

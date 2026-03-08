@@ -2,6 +2,7 @@ import { Globe } from './Globe.js';
 import { NodeStack } from './NodeStack.js';
 import { TerminalPane } from './TerminalPane.js';
 import type { AppState } from '../types/index.js';
+import { NETWORK_LABEL } from '../config.js';
 
 interface Props {
   state: AppState;
@@ -21,7 +22,7 @@ export function Dashboard({ state }: Props) {
       <div className="dashboard-left">
         <div className="dashboard-brand">
           <span className="brand-title">ALGOTRON v0.1</span>
-          <span className="brand-subtitle">ALGORAND MAINNET</span>
+          <span className="brand-subtitle">{NETWORK_LABEL}</span>
         </div>
         <Globe
           nodes={nodes}

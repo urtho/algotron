@@ -180,7 +180,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
                 className={`node-stack-plane${relPos === 0 ? ' node-stack-plane--front' : ''}`}
                 style={{
                   position: pi === 0 ? 'relative' : 'absolute',
-                  ...(pi > 0 ? { top: 0, left: 0 } : {}),
+                  ...(pi > 0 ? { top: 0, left: 0, height: '100%' } : {}),
                   transform: `translateZ(${centerZRef.current - relPos * Z_SPACING}px) scale(0.75)`,
                 }}
                 onMouseEnter={relPos === 0 ? () => { hoverFrontRef.current = true; } : undefined}

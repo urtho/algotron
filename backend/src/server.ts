@@ -51,8 +51,8 @@ wss.on('connection', (ws: WebSocket) => {
 
 // ─── Boot sequence ───────────────────────────────────────────────────────────
 
-const RELAY_SRV = '_algobootstrap._tcp.mainnet.algorand.net';
-const ARCHIVER_SRV = '_archive._tcp.mainnet.algorand.net';
+const RELAY_SRV = process.env.RELAY_SRV ?? '_algobootstrap._tcp.mainnet.algorand.net';
+const ARCHIVER_SRV = process.env.ARCHIVER_SRV ?? '_archive._tcp.mainnet.algorand.net';
 
 async function runBoot(session: Session) {
   await session.bootLog('[ALGOTRON] Algorand Network Discovery System v1.0');

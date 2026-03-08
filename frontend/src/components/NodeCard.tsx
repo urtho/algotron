@@ -1,4 +1,5 @@
 import type { NodeState } from '../types/index.js';
+import { blockUrl } from '../config.js';
 
 interface Props {
   node: NodeState;
@@ -48,9 +49,14 @@ export function NodeCard({ node, tipBlock }: Props) {
           <span className="node-scanning">SCAN<span className="ellipsis" /></span>
         ) : blockDisplay ? (
           <>
-            <span className={`node-block-num${lag !== null && lag > 0 ? ' node-block-lagging' : ''}`}>
+            <a
+              href={blockUrl(node.lastBlock)}
+              target="_blank"
+              rel="noreferrer"
+              className={`node-block-num${lag !== null && lag > 0 ? ' node-block-lagging' : ''}`}
+            >
               {blockDisplay}
-            </span>
+            </a>
           </>
         ) : null}
       </div>

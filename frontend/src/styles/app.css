@@ -387,6 +387,7 @@ body::after {
   display: grid;
   grid-template-columns: repeat(5, 200px);
   gap: 12px;
+  align-content: start;
   padding: 20px;
   background: transparent;
   border: 2px solid transparent;
