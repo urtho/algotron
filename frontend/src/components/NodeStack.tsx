@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NodeCard } from './NodeCard.js';
+import { blockExplorerUrl } from '../config.js';
 import type { NodeState } from '../types/index.js';
 
 interface Props {
@@ -149,7 +150,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
           )}
         </span>
         <span className="node-grid-tip">
-          TIP: <span className="tip-value">#{tipBlock.toLocaleString()}</span>
+          TIP: <a href={blockExplorerUrl(tipBlock)} target="_blank" rel="noreferrer" className="tip-value">#{tipBlock.toLocaleString()}</a>
         </span>
       </div>
 

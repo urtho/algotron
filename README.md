@@ -72,7 +72,6 @@ algotron/
     └── components/
         ├── Globe.tsx            # Three.js globe
         ├── Dashboard.tsx
-        ├── NodeGrid.tsx
         ├── NodeCard.tsx
         ├── BootTerminal.tsx
         └── TerminalPane.tsx
