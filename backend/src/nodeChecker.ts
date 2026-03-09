@@ -37,6 +37,22 @@ export async function checkBlockExists(ip: string, port: number, block: number):
 }
 
 /**
+ * Returns true when the node is reachable — i.e. responds with 200 or 404.
+ * A 404 means the node is alive but doesn't have that specific block.
+ */
+async function isNodeAlive(ip: string, port: number): Promise<boolean> {
+  try {
+    const res = await fetch(blockUrl(ip, port, 0), {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    return res.status === 200 || res.status === 404;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Binary search: find the highest block number in [lo, hi] that exists.
  * Assumes blocks form a contiguous range up to some ceiling.
  *
@@ -95,7 +111,7 @@ export async function discoverNode(
 
   if (isArchiver) {
     // Archiver: blocks 0..N — confirm it's alive then binary search the ceiling
-    const alive = await checkBlockExists(ip, port, 0);
+    const alive = await isNodeAlive(ip, port);
     if (!alive) return null;
     const lastBlock = await binarySearchLastBlock(ip, port, 0, 100_000_000, getTip);
     return { firstBlock: 0, lastBlock };
@@ -106,7 +122,7 @@ export async function discoverNode(
   const searchHi = tip + 10;
 
   // Confirm the relay is alive at all
-  const aliveCheck = await checkBlockExists(ip, port, Math.max(0, tip - 5_000));
+  const aliveCheck = await isNodeAlive(ip, port);
   if (!aliveCheck) return null;
 
   const lastBlock = await binarySearchLastBlock(ip, port, Math.max(0, tip - 5_000), searchHi, getTip);
