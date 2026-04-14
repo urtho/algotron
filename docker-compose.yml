@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      RELAY_SRV: ${RELAY_SRV:-_algobootstrap._tcp.mainnet.algorand.net}
+      ARCHIVER_SRV: ${ARCHIVER_SRV:-_archive._tcp.mainnet.algorand.net}
+      NETWORK_ID: ${NETWORK_ID:-mainnet-v1.0}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_NETWORK_ID: ${VITE_NETWORK_ID:-mainnet-v1.0}
+        VITE_NETWORK_LABEL: ${VITE_NETWORK_LABEL:-ALGORAND MAINNET}
+        VITE_EXPLORER: ${VITE_EXPLORER:-https://allo.info}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
