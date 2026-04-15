@@ -74,8 +74,13 @@ class NodeMonitor {
     void (async () => {
       const archivers = newNodes.filter(n => n.type === 'archiver');
       const relays    = newNodes.filter(n => n.type === 'relay');
+      console.log(`[BOOT] Starting discovery: ${archivers.length} archivers, ${relays.length} relays`);
+      console.log(`[BOOT] Checking archivers first to establish chain tip...`);
       await Promise.allSettled(archivers.map(n => this.bootNode(n)));
+      console.log(`[BOOT] Archiver discovery done. Tip: ${this.tipBlock}`);
+      console.log(`[BOOT] Checking relays...`);
       await Promise.allSettled(relays.map(n => this.bootNode(n)));
+      console.log(`[BOOT] All discovery complete. ${this.nodes.size} nodes tracked, tip: ${this.tipBlock}`);
       this.broadcastLog('[MONITOR] All initial node discoveries completed', 'info');
     })();
   }
@@ -99,6 +104,8 @@ class NodeMonitor {
   // ─── node lifecycle ───────────────────────────────────────────────────────
 
   private async bootNode(node: NodeState): Promise<void> {
+    console.log(`[BOOT] Checking ${node.type} ${node.label} (${node.ip}:${node.port})`);
+
     const result = await discoverNode(
       node.ip,
       node.port,
@@ -107,6 +114,7 @@ class NodeMonitor {
     );
 
     if (!result) {
+      console.warn(`[BOOT] ${node.type} ${node.label} (${node.ip}:${node.port}) — offline`);
       this.patchNode(node.id, { status: 'offline', checkingBoot: false });
       this.broadcastLog(
         `[${node.type.toUpperCase()}] ${node.label} (${node.ip}) offline during boot`,
@@ -115,6 +123,8 @@ class NodeMonitor {
       this.startPolling(node.id);
       return;
     }
+
+    console.log(`[BOOT] ${node.type} ${node.label} (${node.ip}:${node.port}) — blocks ${result.firstBlock}..${result.lastBlock}`);
 
     this.patchNode(node.id, {
       firstBlock: result.firstBlock,

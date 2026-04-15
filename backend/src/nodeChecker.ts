@@ -18,7 +18,8 @@ const ALGO_TIP_ESTIMATE = 48_000_000;
 const REQUEST_TIMEOUT_MS = 6_000;
 
 function blockUrl(ip: string, port: number, block: number): string {
-  return `http://${ip}:${port}/v1/${NETWORK_ID}/block/${block.toString(36)}`;
+  const host = ip.includes(':') ? `[${ip}]` : ip;
+  return `http://${host}:${port}/v1/${NETWORK_ID}/block/${block.toString(36)}`;
 }
 
 /**
@@ -47,7 +48,9 @@ async function isNodeAlive(ip: string, port: number): Promise<boolean> {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     return res.status === 200 || res.status === 404;
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[CHECK] ${ip}:${port} unreachable: ${msg}`);
     return false;
   }
 }

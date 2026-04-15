@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
 import { resolveSrvHosts } from './dns.js';
-import type { DnsProgress } from './dns.js';
+import type { DnsProgress, ResolvedNode } from './dns.js';
 import { geolocateIPs } from './geoip.js';
 import { Session } from './session.js';
 import { nodeMonitor } from './nodeMonitor.js';
@@ -61,7 +61,11 @@ async function runBoot(session: Session) {
 
   // ── DNS resolution ────────────────────────────────────────────────────────
 
+  const skipRelays = RELAY_SRV === 'NONE';
+
   await session.bootLog('[BOOT] Phase 1: DNS discovery');
+  await session.bootLog(`[BOOT] Relay SRV:    ${skipRelays ? 'NONE (skipped)' : RELAY_SRV}`);
+  await session.bootLog(`[BOOT] Archiver SRV: ${ARCHIVER_SRV}`);
   await session.bootLog('');
 
   const progress: DnsProgress = { done: 0, total: 0 };
@@ -76,7 +80,9 @@ async function runBoot(session: Session) {
   }, 1000);
 
   const [relayNodes, archiverNodes] = await Promise.all([
-    resolveSrvHosts(RELAY_SRV, progress, (msg) => void session.bootLog(msg)),
+    skipRelays
+      ? Promise.resolve([] as ResolvedNode[])
+      : resolveSrvHosts(RELAY_SRV, progress, (msg) => void session.bootLog(msg)),
     resolveSrvHosts(ARCHIVER_SRV, progress, (msg) => void session.bootLog(msg)),
   ]);
 
@@ -84,7 +90,7 @@ async function runBoot(session: Session) {
   await session.bootLog(`[BOOT] Discovery: 100% — ${relayNodes.length} relays, ${archiverNodes.length} archivers`);
 
   await session.bootLog('');
-  await session.bootLog(`[BOOT] Relays found:    ${relayNodes.length}`);
+  if (!skipRelays) await session.bootLog(`[BOOT] Relays found:    ${relayNodes.length}`);
   await session.bootLog(`[BOOT] Archivers found: ${archiverNodes.length}`);
 
   if (relayNodes.length === 0 && archiverNodes.length === 0) {
