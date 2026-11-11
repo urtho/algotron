@@ -19,6 +19,11 @@ Version 2 adds realtime chain statistics:
 - **Block propagation**: how long relays take to show a block after the first one does
 - **3D globe with a propagation wavefront**: each new block draws a ring at the first node, arcs to the
   next ones, and lights every relay at its usual delay
+- **Dot-matrix land, bloom and an atmosphere rim** on the globe. Bloom switches itself off on a display that
+  cannot hold about 25 frames per second (`?fx=1` forces it on, `?fx=0` off)
+- **Wall mode** for an unattended screen: the globe turns to face the relay that showed each block first and
+  the panels take the stage in turn. Starts from the top-bar button, with `#wall` in the address, or after
+  5 minutes without input (`?idle=0` disables that, `?idle=60` sets seconds); pointer movement or a key ends it
 - **Honeycomb wall**: one hex per node, fastest reply first, rippling in propagation order; hover for detail
 - **Block river, proposer ring, moments**: blocks as stacked slabs, the current proposer on a ring, and a
   banner for bursts, slow rounds and nodes that drop or recover

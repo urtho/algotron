@@ -1,14 +1,28 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { NodeState } from '../../../shared/types.ts';
 import land from '../assets/land-110m.json';
+import { landDots } from '../landDots.ts';
 import { algoLogo } from './algologo.tsx';
 
 interface Props {
   nodes: NodeState[];
   /** Newest block and the node that showed it first: drawn as a ring and arcs to other nodes */
   pulse?: { round: number; id: string };
+  /** Wall mode: the globe turns to face the node that showed each block first */
+  follow?: boolean;
 }
+
+/**
+ * Bloom: `?fx=1` forces it on, `?fx=0` off. By default it is on and switches
+ * itself off when the display cannot hold about 25 frames per second with it.
+ */
+const FX = new URLSearchParams(location.search).get('fx');
+const SLOW_FRAME_MS = 40;
 
 interface Fx {
   obj: THREE.Mesh | THREE.Line;
@@ -57,7 +71,11 @@ const ARC_POINTS = 48;
 export const WAVE_SCALE_MS = 1200;
 const WAVE_HOLD_MS = 900;
 
-export function Globe({ nodes, pulse }: Props) {
+export function Globe({ nodes, pulse, follow }: Props) {
+  const followRef = useRef(false);
+  followRef.current = !!follow;
+  /** Rotation that brings the newest block's first node to the front */
+  const aimRef = useRef<{ x: number; y: number } | null>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const dotsGroupRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -82,6 +100,7 @@ export function Globe({ nodes, pulse }: Props) {
 
     // Scene
     const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x00060f); // the bloom pass needs an opaque frame
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
@@ -89,7 +108,7 @@ export function Globe({ nodes, pulse }: Props) {
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h);
     renderer.setClearColor(0x000000, 0);
     container.appendChild(renderer.domElement);
@@ -111,6 +130,22 @@ export function Globe({ nodes, pulse }: Props) {
     });
     const sphere = new THREE.Mesh(sphereGeo, sphereMat);
     globeGroup.add(sphere);
+
+    // ── Atmosphere rim: brightest where the sphere turns away from the camera ───
+    const rim = new THREE.Mesh(
+      new THREE.SphereGeometry(1.09, 64, 64),
+      new THREE.ShaderMaterial({
+        transparent: true,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        vertexShader:
+          'varying vec3 n; void main(){ n = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader:
+          'varying vec3 n; void main(){ float k = pow(0.62 - dot(n, vec3(0.0, 0.0, 1.0)), 3.0); gl_FragColor = vec4(0.0, 0.62, 1.0, 1.0) * clamp(k, 0.0, 1.0) * 0.9; }',
+      }),
+    );
+    scene.add(rim);
 
     // ── Atmosphere glow ───────────────────────────────────────────────────────
     // const atmoGeo = new THREE.SphereGeometry(1.05, 32, 32);
@@ -226,7 +261,7 @@ export function Globe({ nodes, pulse }: Props) {
     const landMat = new THREE.LineBasicMaterial({
       color: 0x00662e,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.35,
     });
     {
       const geojson = land as unknown as { features: GeoFeature[] };
@@ -248,7 +283,37 @@ export function Globe({ nodes, pulse }: Props) {
       }
 
       globeGroup.add(contourGroup);
+
+      // ── Land as a dot matrix ────────────────────────────────────────────────
+      const dots = landDots(geojson.features, 1.5);
+      const pos = new Float32Array(dots.length * 3);
+      dots.forEach(([lat, lng], i) => {
+        const v = latLngToVec3(lat, lng, 1.003);
+        pos.set([v.x, v.y, v.z], i * 3);
+      });
+      const dotGeo = new THREE.BufferGeometry();
+      dotGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      globeGroup.add(
+        new THREE.Points(
+          dotGeo,
+          new THREE.PointsMaterial({
+            color: 0x19c477,
+            size: 0.011,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 0.85,
+          }),
+        ),
+      );
     }
+
+    // ── Bloom ─────────────────────────────────────────────────────────────────
+    let bloomOn = FX !== '0' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.42, 0.5, 0.3));
+    composer.addPass(new OutputPass());
+    let slowFrames = 0;
 
     // ── Drag-to-rotate ────────────────────────────────────────────────────────
     let isDragging = false;
@@ -340,7 +405,28 @@ export function Globe({ nodes, pulse }: Props) {
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
-      if (!isDragging) globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
+      const aim = aimRef.current;
+      if (isDragging) {
+        aimRef.current = null;
+      } else if (followRef.current && aim) {
+        // ease toward the first node of the newest block, the short way round
+        const TAU = Math.PI * 2;
+        const dy = ((((aim.y - globeGroup.rotation.y) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
+        const ease = 1 - Math.exp(-dt * 1.6);
+        globeGroup.rotation.y += dy * ease;
+        globeGroup.rotation.x += (aim.x - globeGroup.rotation.x) * ease;
+      } else {
+        globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
+      }
+
+      // bloom costs several extra passes: drop it when frames stay slow
+      if (bloomOn && FX !== '1') {
+        slowFrames = dt * 1000 > SLOW_FRAME_MS ? slowFrames + 1 : Math.max(0, slowFrames - 2);
+        if (slowFrames > 90) {
+          bloomOn = false;
+          console.info('[GLOBE] bloom switched off: this display is too slow for it (force with ?fx=1)');
+        }
+      }
       logoGroup.rotation.y -= 0.8 * dt; // ~1 revolution per 7.9 s
       scanAngle += ((2 * Math.PI) / 2.8) * dt; // one full revolution per 2.8 s
       scanGroup.rotation.y = scanAngle;
@@ -393,7 +479,8 @@ export function Globe({ nodes, pulse }: Props) {
         else (f.obj as THREE.Line).geometry.setDrawRange(0, Math.ceil(ARC_POINTS * Math.min(1, t * 2.2)));
       }
 
-      renderer.render(scene, camera);
+      if (bloomOn) composer.render();
+      else renderer.render(scene, camera);
 
       // Render HUD (logo) on top without clearing the colour buffer
       renderer.autoClear = false;
@@ -408,6 +495,7 @@ export function Globe({ nodes, pulse }: Props) {
       const nw = container.clientWidth;
       const nh = container.clientHeight;
       renderer.setSize(nw, nh);
+      composer.setSize(nw, nh);
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
       // Keep HUD camera and logo position in sync with canvas size
@@ -428,6 +516,7 @@ export function Globe({ nodes, pulse }: Props) {
       container.removeEventListener('pointerup', onPointerUp);
       container.removeEventListener('pointercancel', onPointerUp);
       container.removeEventListener('pointerleave', onPointerLeave);
+      composer.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       rendererRef.current = null;
@@ -456,6 +545,11 @@ export function Globe({ nodes, pulse }: Props) {
       ),
     };
     const from = latLngToVec3(origin.lat, origin.lng, 1.006);
+    // rotation.y that puts the node on the camera's meridian, and a tilt toward its latitude
+    aimRef.current = {
+      y: Math.atan2(-from.x, from.z),
+      x: Math.max(-0.9, Math.min(0.9, (origin.lat * Math.PI) / 180)) * 0.85,
+    };
 
     for (const [delay, grow, opacity] of [
       [0, 9, 0.9],

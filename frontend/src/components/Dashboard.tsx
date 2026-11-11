@@ -11,6 +11,7 @@ import {
   tpsSeries,
   txParts,
 } from '../stats.ts';
+import { useWallMode } from '../wall.ts';
 import { BlockRiver } from './BlockRiver.tsx';
 import { ChartPanel, LineChart, StackChart } from './Chart.tsx';
 import { Globe } from './Globe.tsx';
@@ -48,10 +49,11 @@ export function Dashboard({ state }: { state: AppState }) {
 
   const newest = blocks[blocks.length - 1];
   const pulse = newest?.first ? { round: newest.round, id: newest.first } : undefined;
+  const wall = useWallMode();
   const ago = (n: number) => `−${fmt.int((n * (summary.blockTime || 2.8)) / 60)} min`;
 
   return (
-    <div className="dash">
+    <div className={`dash${wall.on ? ` dash--wall dash--stage-${wall.stage}` : ''}`}>
       <header className="topbar">
         <span className="brand-title">ALGOTRON</span>
         <span className="brand-subtitle">
@@ -65,6 +67,13 @@ export function Dashboard({ state }: { state: AppState }) {
             #{tip.toLocaleString('en-US')}
           </a>
         </span>
+        <button
+          type="button"
+          className={`wall-toggle${wall.on ? ' wall-toggle--on' : ''}`}
+          onClick={wall.toggle}
+        >
+          {wall.on ? `WALL MODE · ${wall.stage.toUpperCase()} · MOVE POINTER TO EXIT` : 'WALL MODE'}
+        </button>
         <span className={`topbar-link topbar-link--${state.connected ? 'up' : 'down'}`}>
           {state.connected ? '● LIVE' : '○ RECONNECTING'}
         </span>
@@ -75,7 +84,7 @@ export function Dashboard({ state }: { state: AppState }) {
       <div className="dash-main">
         <div className="dash-left">
           <div className="globe-cell">
-            <Globe nodes={nodes} pulse={pulse} />
+            <Globe nodes={nodes} pulse={pulse} follow={wall.on} />
             <Moments
               tps={tps}
               logs={state.logs}

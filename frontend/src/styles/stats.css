@@ -15,6 +15,23 @@
   --panel: rgba(0, 204, 255, 0.03);
 }
 
+/* Panel shares, as numbers so wall mode can animate them */
+@property --left {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 36;
+}
+@property --charts {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 34;
+}
+@property --bottom {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 21;
+}
+
 .app-dash {
   height: 100%;
   transition: opacity 0.8s;
@@ -36,7 +53,7 @@
 
 .dash-main {
   display: grid;
-  grid-template-columns: minmax(0, 36%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, calc(var(--left) * 1%)) minmax(0, 1fr);
   gap: 2px;
   background: var(--border);
   min-height: 0;
@@ -50,7 +67,7 @@
 }
 .dash-right {
   display: grid;
-  grid-template-rows: minmax(250px, 34%) minmax(0, 1fr) minmax(150px, 21%);
+  grid-template-rows: calc(var(--charts) * 1%) minmax(0, 1fr) calc(var(--bottom) * 1%);
   gap: 2px;
   min-height: 0;
 }
@@ -248,7 +265,14 @@
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+.chart-note {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .chart-legend {
+  flex-shrink: 0;
   display: flex;
   gap: 10px;
   margin-left: auto;
@@ -680,7 +704,66 @@
   text-shadow: none;
 }
 
+/* ── Wall mode: one panel takes the stage at a time ─────────────────────────── */
+.dash {
+  --left: 36;
+  --charts: 34;
+  --bottom: 21;
+  transition:
+    --left 1.6s ease-in-out,
+    --charts 1.6s ease-in-out,
+    --bottom 1.6s ease-in-out;
+}
+.dash--wall {
+  cursor: none;
+}
+.dash--stage-globe {
+  --left: 58;
+  --charts: 30;
+  --bottom: 18;
+}
+.dash--stage-charts {
+  --left: 30;
+  --charts: 56;
+  --bottom: 12;
+}
+.dash--stage-relays {
+  --left: 30;
+  --charts: 20;
+  --bottom: 12;
+}
+.dash--stage-log {
+  --left: 30;
+  --charts: 24;
+  --bottom: 44;
+}
+
+.wall-toggle {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--border2);
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.wall-toggle:hover,
+.wall-toggle:focus-visible {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  outline: none;
+}
+.wall-toggle--on {
+  color: var(--bg);
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .dash {
+    transition: none;
+  }
   .tape-cell--new,
   .topbar-link--down {
     animation: none;
