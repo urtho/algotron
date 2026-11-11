@@ -33,7 +33,14 @@ const hexPoints = (cx: number, cy: number, r: number) =>
  * troubled ones sit at the end. With every new block each hex flashes after
  * its usual propagation delay, so the wall ripples in the order blocks spread.
  */
-export function HexWall({ nodes, tipBlock, round }: { nodes: NodeState[]; tipBlock: number; round: number }) {
+export function HexWall(props: {
+  nodes: NodeState[];
+  tipBlock: number;
+  round: number;
+  slow: number;
+  timedOnly: boolean;
+}) {
+  const { nodes, tipBlock, round, slow, timedOnly } = props;
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -72,6 +79,7 @@ export function HexWall({ nodes, tipBlock, round }: { nodes: NodeState[]; tipBlo
         <span className="panel-title">NETWORK HEALTH MONITORS</span>
         <span className="chart-note">
           fastest reply first · flash = usual delay after a block is first seen
+          {slow > 1 ? ` (slowed ${slow}×)` : ''}
         </span>
         <span className="chart-legend">
           <span className="chart-legend-item">
@@ -108,12 +116,12 @@ export function HexWall({ nodes, tipBlock, round }: { nodes: NodeState[]; tipBlo
                   onPointerEnter={() => setHover({ id: n.id, x: cx, y: cy })}
                 >
                   <polygon points={pts} className="hex-cell" />
-                  {n.status === 'synced' && n.prop > 0 && (
+                  {n.status === 'synced' && n.prop > 0 && (!timedOnly || n.soft !== undefined) && (
                     <polygon
                       key={round}
                       points={pts}
                       className="hex-flash"
-                      style={{ animationDelay: `${Math.min(3000, Math.round(n.prop))}ms` }}
+                      style={{ animationDelay: `${Math.min(3000, Math.round(n.prop * slow))}ms` }}
                     />
                   )}
                   {r >= 17 && (
@@ -151,8 +159,13 @@ export function HexWall({ nodes, tipBlock, round }: { nodes: NodeState[]; tipBlo
           >
             <NodeCard node={hovered} tipBlock={tipBlock} />
             <div className="hex-detail-more">
-              {hovered.net} · {hovered.prop ? `+${Math.round(hovered.prop)} ms after first` : 'no delay data'}{' '}
-              · first on {hovered.firsts} blocks
+              {hovered.net} ·{' '}
+              {hovered.prop
+                ? `+${hovered.prop < 100 ? hovered.prop.toFixed(1) : Math.round(hovered.prop)} ms after first`
+                : 'no delay data'}
+              {hovered.soft !== undefined && ` · soft +${hovered.soft.toFixed(1)}`}
+              {hovered.cert !== undefined && ` · cert +${hovered.cert.toFixed(1)}`} · first on{' '}
+              {hovered.firsts} blocks
             </div>
           </div>
         )}

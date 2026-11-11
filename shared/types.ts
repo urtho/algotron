@@ -36,6 +36,9 @@ export interface NodeState {
   rtt: number;
   /** Smoothed delay between the first node showing a block and this one, ms */
   prop: number;
+  /** avmonitor only: smoothed median soft / cert vote delivery, ms after the fastest relay */
+  soft?: number;
+  cert?: number;
   /** Blocks this node was the first to show */
   firsts: number;
   /** Why the node is offline: "timeout", "refused", "http 503" ... */
@@ -74,6 +77,9 @@ export interface BlockStat {
   p90?: number;
   /** Nodes that had the block when the round closed */
   reach?: number;
+  /** avmonitor only: ms from the round's first vote to the median relay's median soft / cert vote */
+  softMs?: number;
+  certMs?: number;
 }
 
 export interface AppConfig {
@@ -82,6 +88,8 @@ export interface AppConfig {
   networkLabel: string;
   explorer: string;
   pollMs: number;
+  /** Where propagation figures come from: block-endpoint polling, or avmonitor's gossip vote timing */
+  propSource: 'poll' | 'avmonitor';
 }
 
 export interface LogLine {

@@ -29,7 +29,14 @@ const entry = (l: LogLine): LogEntry => ({ id: logSeq++, message: l.message, lev
 const initial: AppState = {
   connected: false,
   ready: false,
-  config: { version: '', networkId: '', networkLabel: '', explorer: 'https://allo.info', pollMs: 500 },
+  config: {
+    version: '',
+    networkId: '',
+    networkLabel: '',
+    explorer: 'https://allo.info',
+    pollMs: 500,
+    propSource: 'poll',
+  },
   bootLines: [],
   nodes: {},
   blocks: [],

@@ -15,6 +15,12 @@ interface Props {
   pulse?: { round: number; id: string };
   /** Wall mode: the globe turns to face the node that showed each block first */
   follow?: boolean;
+  /** Delay drawn as the darkest step of the wavefront ramp, ms */
+  waveMax: number;
+  /** Playback slowdown of the wavefront (1 = real time) */
+  waveSlow: number;
+  /** Only nodes timed by avmonitor take part in the wave */
+  timedOnly: boolean;
 }
 
 /**
@@ -67,11 +73,14 @@ const STATUS_COLORS: Record<NodeState['status'], number> = {
 
 const ARCHIVER_COLOR = 0x00aaff;
 const ARC_POINTS = 48;
-/** Delay shown as the darkest step of the wavefront ramp, and how long a node stays lit */
-export const WAVE_SCALE_MS = 1200;
+/** How long a node stays lit when the wavefront reaches it */
 const WAVE_HOLD_MS = 900;
 
-export function Globe({ nodes, pulse, follow }: Props) {
+export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Props) {
+  const timedRef = useRef(timedOnly);
+  timedRef.current = timedOnly;
+  const waveCfg = useRef({ max: waveMax, slow: waveSlow });
+  waveCfg.current = { max: waveMax, slow: waveSlow };
   const followRef = useRef(false);
   followRef.current = !!follow;
   /** Rotation that brings the newest block's first node to the front */
@@ -449,10 +458,10 @@ export function Globe({ nodes, pulse, follow }: Props) {
         //    in one hue that runs from light (early) to dark (late)
         const delay = waveRef.current.delay.get(node.id);
         if (delay !== undefined) {
-          const since = now - waveRef.current.born - delay;
+          const since = now - waveRef.current.born - delay * waveCfg.current.slow;
           if (since >= 0 && since < WAVE_HOLD_MS) {
             const k = 1 - since / WAVE_HOLD_MS;
-            _waveColor.setHSL(192 / 360, 0.9, 0.78 - Math.min(1, delay / WAVE_SCALE_MS) * 0.46);
+            _waveColor.setHSL(192 / 360, 0.9, 0.78 - Math.min(1, delay / waveCfg.current.max) * 0.46);
             mat.color.lerp(_waveColor, Math.min(1, k * 1.6));
             scale = Math.max(scale, 1 + k * 1.6);
           }
@@ -541,7 +550,11 @@ export function Globe({ nodes, pulse, follow }: Props) {
     waveRef.current = {
       born: now,
       delay: new Map(
-        all.filter((n) => n.status === 'synced').map((n) => [n.id, n.id === origin.id ? 0 : n.prop || 0]),
+        all
+          .filter(
+            (n) => n.status === 'synced' && (!timedRef.current || n.soft !== undefined || n.id === origin.id),
+          )
+          .map((n) => [n.id, n.id === origin.id ? 0 : n.prop || 0]),
       ),
     };
     const from = latLngToVec3(origin.lat, origin.lng, 1.006);
@@ -732,7 +745,9 @@ export function Globe({ nodes, pulse, follow }: Props) {
         <span className="wave-ramp" />
         <span className="wave-ends">
           <span>first</span>
-          <span>+{WAVE_SCALE_MS.toLocaleString('en-US')} ms</span>
+          <span>
+            +{Math.round(waveMax).toLocaleString('en-US')} ms{waveSlow > 1 ? ` · slowed ${waveSlow}×` : ''}
+          </span>
         </span>
       </div>
       <div ref={tooltipRef} className="globe-node-tooltip" style={{ display: 'none' }} />

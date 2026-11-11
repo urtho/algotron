@@ -58,7 +58,14 @@ function Tile(props: {
   );
 }
 
-export function Kpis({ s, f, pollMs, tps }: { s: Summary; f: Fleet; pollMs: number; tps: number[] }) {
+export function Kpis(props: { s: Summary; f: Fleet; pollMs: number; tps: number[]; av: boolean }) {
+  const { s, f, pollMs, tps, av } = props;
+  // avmonitor times votes on the gossip network; polling can only see when a block is served
+  const propSub = !s.p90
+    ? 'measuring…'
+    : av
+      ? `soft +${fmt.int(s.softMs)} · cert +${fmt.int(s.certMs)} ms`
+      : `p90 ${fmt.int(s.p90)} ms · ±${pollMs} ms`;
   const relayTone =
     f.relays === 0
       ? undefined
@@ -105,10 +112,10 @@ export function Kpis({ s, f, pollMs, tps }: { s: Summary; f: Fleet; pollMs: numb
         sub={`median reply ${fmt.int(f.rtt)} ms`}
       />
       <Tile
-        label="PROPAGATION"
+        label={av ? 'PROPOSAL SPREAD' : 'PROPAGATION'}
         value={s.p50 ? fmt.int(s.p50) : '—'}
         unit="ms"
-        sub={s.p90 ? `p90 ${fmt.int(s.p90)} ms · ±${pollMs} ms` : 'measuring…'}
+        sub={propSub}
       />
       <Tile label="BLOCK SIZE" value={fmt.kb(s.bytes)} unit="KB" sub={`${fmt.int(s.votes)} votes per cert`} />
       <Tile label="PAYOUT" value={fmt.num(s.payout, 2)} unit="ALGO" sub="per block, last 20" />

@@ -75,6 +75,7 @@ Environment variables, all optional:
 | `HOST` / `PORT`   | `0.0.0.0` / `3001`                         | Listener                                  |
 | `POLL_MS`         | `500`                                      | Pause between two polls of one node       |
 | `BACKFILL_BLOCKS` | `240`                                      | Blocks loaded at start to fill the charts |
+| `AVMONITOR_URL`   | unset                                      | avmonitor v2 base URL; unset means polled propagation |
 
 The label and explorer are sent to the browser at runtime, so one image serves any network.
 
@@ -98,6 +99,25 @@ A node is marked **no answer** after three failed requests in a row. That is a s
 from the machine running Algotron: a relay behind a firewall that drops this host looks the same as a
 relay that is down. The card shows the reason (`timeout`, `refused`, `http 503`).
 
+## avmonitor feed (optional)
+
+Set `AVMONITOR_URL` (for example `ws://avmonitor.example:8080`) and the backend connects to avmonitor's
+WebSocket protocol v2 (`/v2/stream?level=full&fmt=bin`, spec in the avmonitor repo, `docs/WS-PROTOCOL-V2.md`).
+avmonitor sits on the gossip network and times every agreement vote at every relay, corrected for network
+delay, so propagation is measured in milliseconds instead of polled.
+
+- **Block wave**: per relay, the delay of the winning proposal vote after its first arrival at any relay.
+  It feeds the wavefront, the honeycomb flash and the propagation chart. Gossip delays are tens of
+  milliseconds, so the wave is replayed slowed down (the key says by how much).
+- **Soft and cert votes**: per relay, the median delivery relative to the fastest relay (shown on hover), and
+  per round the time from the first vote to the median soft and cert vote.
+- Relays are matched by address, then host. Nodes avmonitor does not cover (archivers) keep polled figures
+  and stay out of the wave. If the feed stops for 20 s, polling takes over again.
+- Rounds arrive `delay_rounds` late, so the wave shows each relay's usual delay, not the current block's.
+
+Until the avmonitor v2 server exists, `bun backend/test/avmock.ts http://127.0.0.1:3001` serves made-up
+timings in the real wire format for development.
+
 ## Project structure
 
 ```
@@ -108,6 +128,7 @@ backend/src/
   monitor.ts             poll loops, tip, propagation, block ring
   probe.ts               HEAD / GET against the block endpoint
   blocks.ts, msgpack.ts, address.ts   block decoding
+  avmonitor.ts           avmonitor v2 client: ROUND frame codec, per-relay vote timing
 frontend/src/
   state.ts               WebSocket feed + reducer
   stats.ts               TPS, block time, proposers, fleet summary

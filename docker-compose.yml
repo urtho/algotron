@@ -19,6 +19,7 @@ services:
       NETWORK_LABEL: ${NETWORK_LABEL:-ALGORAND MAINNET}
       EXPLORER: ${EXPLORER:-https://allo.info}
       POLL_MS: ${POLL_MS:-500}
+      AVMONITOR_URL: ${AVMONITOR_URL:-}
     user: "1000:1000"
     read_only: true
     cap_drop: [ALL]

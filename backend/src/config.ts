@@ -19,6 +19,8 @@ export const REDISCOVER_MS = num(env.REDISCOVER_MIN, 15) * 60_000;
 export const HISTORY_BLOCKS = num(env.HISTORY_BLOCKS, 400);
 /** Blocks fetched at start to fill the charts */
 export const BACKFILL_BLOCKS = num(env.BACKFILL_BLOCKS, 240);
+/** avmonitor v2 base URL, e.g. ws://avmonitor.ts.v.nodely.io:8080. Unset: propagation comes from polling. */
+export const AVMONITOR_URL = env.AVMONITOR_URL ?? '';
 export const DNS_SERVERS = (env.DNS_SERVERS ?? '1.1.1.1,1.0.0.1').split(',').map((s) => s.trim());
 
 export const appConfig: AppConfig = {
@@ -28,4 +30,5 @@ export const appConfig: AppConfig = {
   networkLabel: env.NETWORK_LABEL ?? env.VITE_NETWORK_LABEL ?? 'ALGORAND MAINNET',
   explorer: (env.EXPLORER ?? env.VITE_EXPLORER ?? 'https://allo.info').replace(/\/$/, ''),
   pollMs: FAST_POLL_MS,
+  propSource: AVMONITOR_URL ? 'avmonitor' : 'poll',
 };

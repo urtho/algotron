@@ -50,6 +50,18 @@ export function Dashboard({ state }: { state: AppState }) {
   const newest = blocks[blocks.length - 1];
   const pulse = newest?.first ? { round: newest.round, id: newest.first } : undefined;
   const wall = useWallMode();
+  const av = config.propSource === 'avmonitor';
+  // With avmonitor only the relays it times take part in the wave: polled and gossip delays do not mix.
+  // The wave is drawn against the slowest usual delay (95th percentile). Gossip delays are tens of
+  // milliseconds, too fast to see, so with avmonitor the playback is slowed until the wave takes ~1.5 s.
+  const wave = useMemo(() => {
+    const props = nodes
+      .filter((n) => n.status === 'synced' && n.prop > 0 && (!av || n.soft !== undefined))
+      .map((n) => n.prop)
+      .sort((a, b) => a - b);
+    const max = Math.max(20, props[Math.floor(props.length * 0.95)] ?? 1200);
+    return { max, slow: av ? Math.max(1, Math.min(20, Math.round(1500 / max))) : 1 };
+  }, [nodes, av]);
   const ago = (n: number) => `−${fmt.int((n * (summary.blockTime || 2.8)) / 60)} min`;
 
   return (
@@ -79,12 +91,19 @@ export function Dashboard({ state }: { state: AppState }) {
         </span>
       </header>
 
-      <Kpis s={summary} f={fl} pollMs={config.pollMs} tps={tps} />
+      <Kpis s={summary} f={fl} pollMs={config.pollMs} tps={tps} av={av} />
 
       <div className="dash-main">
         <div className="dash-left">
           <div className="globe-cell">
-            <Globe nodes={nodes} pulse={pulse} follow={wall.on} />
+            <Globe
+              nodes={nodes}
+              pulse={pulse}
+              follow={wall.on}
+              waveMax={wave.max}
+              waveSlow={wave.slow}
+              timedOnly={av}
+            />
             <Moments
               tps={tps}
               logs={state.logs}
@@ -133,7 +152,7 @@ export function Dashboard({ state }: { state: AppState }) {
             </ChartPanel>
             <ChartPanel
               title="BLOCK PROPAGATION"
-              note="ms after first sighting"
+              note={av ? 'winning proposal vote · ms after first relay' : 'ms after first sighting'}
               legend={[
                 { name: 'median node', color: C.line },
                 { name: '90th percentile', color: C.line2 },
@@ -152,7 +171,7 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-stack">
-            <HexWall nodes={nodes} tipBlock={tip} round={pulse?.round ?? 0} />
+            <HexWall nodes={nodes} tipBlock={tip} round={pulse?.round ?? 0} slow={wave.slow} timedOnly={av} />
           </div>
 
           <div className="dash-bottom">

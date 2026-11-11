@@ -1,6 +1,7 @@
 import index from '../../frontend/index.html';
 import type { ServerMessage } from '../../shared/types.ts';
-import { appConfig, HOST, PORT, REDISCOVER_MS } from './config.ts';
+import { AvClient } from './avmonitor.ts';
+import { AVMONITOR_URL, appConfig, HOST, PORT, REDISCOVER_MS } from './config.ts';
 import { discover } from './discovery.ts';
 import { Monitor } from './monitor.ts';
 
@@ -58,3 +59,11 @@ monitor.boot(`[ALGOTRON] Algorand Network Discovery System v${appConfig.version}
 monitor.boot('[ALGOTRON] ═══════════════════════════════════════');
 await discover(monitor, true);
 setInterval(() => void discover(monitor, false), REDISCOVER_MS);
+
+if (AVMONITOR_URL) {
+  monitor.boot(`[AVMON] vote timing from ${new URL(AVMONITOR_URL).host}`);
+  new AvClient(AVMONITOR_URL, {
+    onRound: (t) => monitor.applyAv(t),
+    onState: (line, level) => monitor.log(line, level),
+  }).start();
+}

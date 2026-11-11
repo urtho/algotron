@@ -54,6 +54,9 @@ export interface Summary {
   payout: number;
   p50: number;
   p90: number;
+  /** avmonitor only: ms from a round's first vote to the median soft / cert vote */
+  softMs: number;
+  certMs: number;
   spanMin: number;
 }
 
@@ -75,6 +78,8 @@ export function summarize(blocks: BlockStat[]): Summary {
     payout: mean(recent.map((b) => b.payout)) / 1e6,
     p50: mean(timed.map((b) => b.p50!)),
     p90: mean(timed.map((b) => b.p90!)),
+    softMs: mean(timed.filter((b) => b.softMs !== undefined).map((b) => b.softMs!)),
+    certMs: mean(timed.filter((b) => b.certMs !== undefined).map((b) => b.certMs!)),
     spanMin: first && last ? (last.ts - first.ts) / 60 : 0,
   };
 }

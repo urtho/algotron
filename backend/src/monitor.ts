@@ -1,4 +1,5 @@
 import type { BlockStat, LogLine, NodeState, NodeStatus, ServerMessage } from '../../shared/types.ts';
+import type { AvRoundTiming } from './avmonitor.ts';
 import { parseBlock, type RawBlock } from './blocks.ts';
 import { appConfig, BACKFILL_BLOCKS, FAST_POLL_MS, HISTORY_BLOCKS, POLL_MS } from './config.ts';
 import { fetchBlock, probe } from './probe.ts';
@@ -12,6 +13,8 @@ const EWMA = 0.2;
 const FAR_BEHIND = 20;
 /** Fast polling starts this long before the next block is expected */
 const DUE_LEAD_MS = 900;
+/** A node's avmonitor timing is used while it is at most this old; after that polling takes over again */
+const AV_FRESH_MS = 20_000;
 
 interface Runtime {
   fails: number;
@@ -20,6 +23,8 @@ interface Runtime {
   propSent: number;
   /** A warning was logged for this node and not yet cleared */
   flagged: boolean;
+  /** When avmonitor last supplied this node's propagation delay */
+  avAt: number;
 }
 
 interface RoundSeen {
@@ -138,7 +143,7 @@ export class Monitor {
       }
       this.nodes.set(n.id, n);
       this.add.push(n);
-      const rt: Runtime = { fails: 0, stopped: false, rttSent: 0, propSent: 0, flagged: false };
+      const rt: Runtime = { fails: 0, stopped: false, rttSent: 0, propSent: 0, flagged: false, avAt: 0 };
       this.rt.set(n.id, rt);
       void this.run(n, rt);
     }
@@ -218,6 +223,8 @@ export class Monitor {
   private pause(node: NodeState): number {
     if (this.tip === 0 || !this.tipAt) return POLL_MS;
     const now = Date.now();
+    // avmonitor times this node far better than polling can: no need to poll it fast
+    if (this.avFresh(this.rt.get(node.id))) return POLL_MS;
     if (node.lastBlock < this.tip) return this.tip - node.lastBlock > 3 ? POLL_MS : FAST_POLL_MS;
     const dueIn = this.tipAt + this.tipEvery - DUE_LEAD_MS - now;
     if (dueIn <= 0) return now - this.tipAt > this.tipEvery * 4 ? POLL_MS : FAST_POLL_MS; // stalled chain: back off
@@ -268,7 +275,7 @@ export class Monitor {
       if (!entry || entry.seen.has(node.id)) continue;
       const delay = now - entry.t0;
       entry.seen.set(node.id, delay);
-      if (r === round && delay < 20_000) {
+      if (r === round && delay < 20_000 && !this.avFresh(rt)) {
         node.prop = node.prop ? node.prop + EWMA * (delay - node.prop) : delay;
         if (Math.abs(node.prop - rt.propSent) > Math.max(10, rt.propSent * 0.1)) {
           rt.propSent = node.prop;
@@ -306,7 +313,7 @@ export class Monitor {
   /** Propagation summary for a round, once two newer rounds exist. */
   private closeRound(round: number): void {
     const entry = this.rounds.get(round);
-    if (!entry) return;
+    if (!entry || Date.now() - this.avRoundAt < AV_FRESH_MS) return; // avmonitor reports the round instead
     const delays = [...entry.seen.values()].filter((d) => d > 0).sort((a, b) => a - b);
     const patch = {
       p50: Math.round(quantile(delays, 0.5)),
@@ -316,6 +323,78 @@ export class Monitor {
     const block = this.blocks.find((b) => b.round === round);
     if (block) Object.assign(block, patch);
     this.send({ type: 'block_patch', round, patch });
+  }
+
+  // ─── avmonitor ─────────────────────────────────────────────────────────────
+
+  private avRoundAt = 0;
+  private avFresh(rt: Runtime | undefined): boolean {
+    return !!rt && Date.now() - rt.avAt < AV_FRESH_MS;
+  }
+
+  /**
+   * One finished round from avmonitor: per-relay delay of the winning
+   * proposal vote and of the median soft and cert vote. Relays are matched
+   * to nodes by address, then by host; a dual-stack host has two avmonitor
+   * relays and the faster one counts. Nodes avmonitor does not cover
+   * (archivers) keep their polled figures.
+   */
+  applyAv(t: AvRoundTiming): void {
+    const byIp = new Map<string, NodeState>();
+    const byHost = new Map<string, NodeState>();
+    for (const n of this.nodes.values()) {
+      if (n.type !== 'relay') continue;
+      byIp.set(n.ip, n);
+      if (n.ip6) byIp.set(n.ip6, n);
+      byHost.set(n.host, n);
+    }
+    const best = new Map<NodeState, { proposal?: number; soft?: number; cert?: number }>();
+    const low = (a: number | undefined, b: number | undefined) =>
+      a === undefined ? b : b === undefined ? a : Math.min(a, b);
+    for (const r of t.relays) {
+      const node = byIp.get(r.relay.ip) ?? byHost.get(r.relay.host);
+      if (!node) continue;
+      const have = best.get(node) ?? {};
+      best.set(node, {
+        proposal: low(have.proposal, r.proposal),
+        soft: low(have.soft, r.soft),
+        cert: low(have.cert, r.cert),
+      });
+    }
+
+    const now = Date.now();
+    const delays: number[] = [];
+    for (const [node, d] of best) {
+      const rt = this.rt.get(node.id);
+      if (!rt || d.proposal === undefined) continue;
+      delays.push(d.proposal);
+      if (t.partial) continue; // a partial round still draws, but does not move the averages
+      const first = !this.avFresh(rt);
+      rt.avAt = now;
+      const smooth = (old: number | undefined, x: number | undefined) =>
+        x === undefined ? old : first || old === undefined ? x : old + EWMA * (x - old);
+      node.prop = smooth(node.prop, d.proposal)!;
+      node.soft = smooth(node.soft, d.soft);
+      node.cert = smooth(node.cert, d.cert);
+      if (first || Math.abs(node.prop - rt.propSent) > Math.max(2, rt.propSent * 0.05)) {
+        rt.propSent = node.prop;
+        const r1 = (x: number | undefined) => (x === undefined ? undefined : Math.round(x * 10) / 10);
+        this.touch(node.id, { prop: r1(node.prop), soft: r1(node.soft), cert: r1(node.cert) });
+      }
+    }
+    if (delays.length === 0) return;
+    this.avRoundAt = now;
+    delays.sort((a, b) => a - b);
+    const patch = {
+      p50: quantile(delays, 0.5),
+      p90: quantile(delays, 0.9),
+      reach: delays.length,
+      softMs: t.softMs,
+      certMs: t.certMs,
+    };
+    const block = this.blocks.find((b) => b.round === t.round);
+    if (block) Object.assign(block, patch);
+    this.send({ type: 'block_patch', round: t.round, patch });
   }
 
   // ─── blocks ────────────────────────────────────────────────────────────────
