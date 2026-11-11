@@ -11,12 +11,13 @@ import {
   tpsSeries,
   txParts,
 } from '../stats.ts';
-import { BlockTape } from './BlockTape.tsx';
+import { BlockRiver } from './BlockRiver.tsx';
 import { ChartPanel, LineChart, StackChart } from './Chart.tsx';
 import { Globe } from './Globe.tsx';
+import { HexWall } from './HexWall.tsx';
 import { Kpis } from './Kpis.tsx';
-import { NodeStack } from './NodeStack.tsx';
-import { Proposers } from './Proposers.tsx';
+import { Moments } from './Moments.tsx';
+import { ProposerRing } from './ProposerRing.tsx';
 import { RoundClock } from './RoundClock.tsx';
 import { TerminalPane } from './TerminalPane.tsx';
 
@@ -36,7 +37,7 @@ export function Dashboard({ state }: { state: AppState }) {
 
   const summary = useMemo(() => summarize(blocks), [blocks]);
   const fl = useMemo(() => fleet(nodes), [nodes]);
-  const proposers = useMemo(() => topProposers(blocks), [blocks]);
+  const proposers = useMemo(() => topProposers(blocks, 36), [blocks]);
 
   // the first WINDOW points have a shorter window behind them, so they are not drawn
   const rounds = useMemo(() => blocks.slice(WINDOW).map((b) => b.round), [blocks]);
@@ -69,12 +70,21 @@ export function Dashboard({ state }: { state: AppState }) {
         </span>
       </header>
 
-      <Kpis s={summary} f={fl} pollMs={config.pollMs} />
+      <Kpis s={summary} f={fl} pollMs={config.pollMs} tps={tps} />
 
       <div className="dash-main">
         <div className="dash-left">
-          <Globe nodes={nodes} pulse={pulse} />
-          <BlockTape blocks={blocks} explorer={config.explorer} labels={labels} />
+          <div className="globe-cell">
+            <Globe nodes={nodes} pulse={pulse} />
+            <Moments
+              tps={tps}
+              logs={state.logs}
+              tipAt={state.tipAt}
+              blockTime={summary.blockTime}
+              connected={state.connected}
+            />
+          </div>
+          <BlockRiver blocks={blocks} colors={C.kinds} explorer={config.explorer} labels={labels} />
         </div>
 
         <div className="dash-right">
@@ -133,11 +143,17 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-stack">
-            <NodeStack nodes={nodes} tipBlock={tip} />
+            <HexWall nodes={nodes} tipBlock={tip} round={pulse?.round ?? 0} />
           </div>
 
           <div className="dash-bottom">
-            <Proposers rows={proposers} explorer={config.explorer} blocks={blocks.length} />
+            <ProposerRing
+              rows={proposers}
+              newest={newest}
+              explorer={config.explorer}
+              blocks={blocks.length}
+              color={C.line}
+            />
             <TerminalPane logs={state.logs} />
           </div>
         </div>

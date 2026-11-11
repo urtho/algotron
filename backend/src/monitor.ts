@@ -1,6 +1,6 @@
 import type { BlockStat, LogLine, NodeState, NodeStatus, ServerMessage } from '../../shared/types.ts';
 import { parseBlock, type RawBlock } from './blocks.ts';
-import { appConfig, BACKFILL_BLOCKS, HISTORY_BLOCKS, POLL_MS } from './config.ts';
+import { appConfig, BACKFILL_BLOCKS, FAST_POLL_MS, HISTORY_BLOCKS, POLL_MS } from './config.ts';
 import { fetchBlock, probe } from './probe.ts';
 
 /** A round no chain has reached: asking for it returns the node's height in X-Latest-Round */
@@ -10,6 +10,8 @@ const FLUSH_MS = 250;
 const V6_CHECK_MS = 60_000;
 const EWMA = 0.2;
 const FAR_BEHIND = 20;
+/** Fast polling starts this long before the next block is expected */
+const DUE_LEAD_MS = 900;
 
 interface Runtime {
   fails: number;
@@ -60,6 +62,9 @@ export class Monitor {
   private patch: Record<string, Partial<NodeState>> = {};
   private remove: string[] = [];
   private tipDirty = false;
+  /** When the tip last moved and the smoothed time between tips, for the fast-poll window */
+  private tipAt = 0;
+  private tipEvery = 2800;
 
   constructor(private send: (msg: ServerMessage) => void) {
     setInterval(() => this.flush(), FLUSH_MS);
@@ -158,7 +163,8 @@ export class Monitor {
       const want = node.lastBlock > 0 ? node.lastBlock + 1 : FAR_ROUND;
       const r = await probe(node.ip, node.port, want);
       if (rt.stopped) return;
-      const now = Date.now();
+      // the node answered about half a round trip ago
+      const now = Date.now() - r.rtt / 2;
       let again = false;
 
       if (r.alive) {
@@ -197,9 +203,25 @@ export class Monitor {
 
       this.restatus(node, rt);
       if (again) continue;
-      const pause = rt.fails >= OFFLINE_AFTER ? Math.min(15_000, POLL_MS * 2 ** (rt.fails - 1)) : POLL_MS;
-      await sleep(pause * (0.9 + Math.random() * 0.2));
+      if (rt.fails >= OFFLINE_AFTER) {
+        await sleep(Math.min(15_000, POLL_MS * 2 ** (rt.fails - 1)) * (0.9 + Math.random() * 0.2));
+      } else {
+        await sleep(this.pause(node));
+      }
     }
+  }
+
+  /**
+   * Poll slowly while nothing can happen and every FAST_POLL_MS from shortly
+   * before the next block is expected until this node has it.
+   */
+  private pause(node: NodeState): number {
+    if (this.tip === 0 || !this.tipAt) return POLL_MS;
+    const now = Date.now();
+    if (node.lastBlock < this.tip) return this.tip - node.lastBlock > 3 ? POLL_MS : FAST_POLL_MS;
+    const dueIn = this.tipAt + this.tipEvery - DUE_LEAD_MS - now;
+    if (dueIn <= 0) return now - this.tipAt > this.tipEvery * 4 ? POLL_MS : FAST_POLL_MS; // stalled chain: back off
+    return Math.min(POLL_MS, dueIn) + Math.random() * FAST_POLL_MS;
   }
 
   private status(node: NodeState, rt: Runtime): NodeStatus {
@@ -248,7 +270,7 @@ export class Monitor {
       entry.seen.set(node.id, delay);
       if (r === round && delay < 20_000) {
         node.prop = node.prop ? node.prop + EWMA * (delay - node.prop) : delay;
-        if (Math.abs(node.prop - rt.propSent) > Math.max(20, rt.propSent * 0.1)) {
+        if (Math.abs(node.prop - rt.propSent) > Math.max(10, rt.propSent * 0.1)) {
           rt.propSent = node.prop;
           this.touch(node.id, { prop: Math.round(node.prop) });
         }
@@ -260,6 +282,11 @@ export class Monitor {
     const prev = this.tip;
     this.tip = round;
     this.tipDirty = true;
+    if (this.tipAt && round === prev + 1) {
+      const gap = Math.min(10_000, now - this.tipAt);
+      this.tipEvery += EWMA * (gap - this.tipEvery);
+    }
+    this.tipAt = now;
 
     if (now >= this.liveAt) {
       this.rounds.set(round, { t0: now, first: node.id, seen: new Map([[node.id, 0]]) });
@@ -359,7 +386,7 @@ export class Monitor {
       const stat: BlockStat = {
         ...rest,
         txns: parent && raw.tc >= parent.tc ? raw.tc - parent.tc : raw.top,
-        seenAt: seen?.t0 ?? 0,
+        seenAt: Math.round(seen?.t0 ?? 0),
         first: seen?.first,
       };
       this.emitted.add(round);

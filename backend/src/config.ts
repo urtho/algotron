@@ -10,6 +10,8 @@ export const PORT = num(env.PORT, 3001);
 export const HOST = env.HOST ?? '0.0.0.0';
 /** Pause between two polls of one node */
 export const POLL_MS = num(env.POLL_MS, 500);
+/** Pause between polls while a block is due: this is the propagation resolution */
+export const FAST_POLL_MS = num(env.FAST_POLL_MS, 100);
 export const REQUEST_TIMEOUT_MS = num(env.REQUEST_TIMEOUT_MS, 5000);
 /** How often the SRV records are read again */
 export const REDISCOVER_MS = num(env.REDISCOVER_MIN, 15) * 60_000;
@@ -25,5 +27,5 @@ export const appConfig: AppConfig = {
   // VITE_* names are still read so an existing .env keeps working
   networkLabel: env.NETWORK_LABEL ?? env.VITE_NETWORK_LABEL ?? 'ALGORAND MAINNET',
   explorer: (env.EXPLORER ?? env.VITE_EXPLORER ?? 'https://allo.info').replace(/\/$/, ''),
-  pollMs: POLL_MS,
+  pollMs: FAST_POLL_MS,
 };

@@ -53,6 +53,9 @@ const STATUS_COLORS: Record<NodeState['status'], number> = {
 
 const ARCHIVER_COLOR = 0x00aaff;
 const ARC_POINTS = 48;
+/** Delay shown as the darkest step of the wavefront ramp, and how long a node stays lit */
+export const WAVE_SCALE_MS = 1200;
+const WAVE_HOLD_MS = 900;
 
 export function Globe({ nodes, pulse }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -64,6 +67,8 @@ export function Globe({ nodes, pulse }: Props) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const fxGroupRef = useRef<THREE.Group | null>(null);
   const fxRef = useRef<Fx[]>([]);
+  /** Wavefront: when the newest block was first seen (page clock) and each node's usual delay */
+  const waveRef = useRef<{ born: number; delay: Map<string, number> }>({ born: 0, delay: new Map() });
   const nodesRef = useRef<NodeState[]>(nodes);
   nodesRef.current = nodes;
 
@@ -328,6 +333,7 @@ export function Globe({ nodes, pulse }: Props) {
     let scanAngle = 0;
     const _tempColor = new THREE.Color();
     const _whiteColor = new THREE.Color(0xffffff);
+    const _waveColor = new THREE.Color();
 
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
@@ -351,7 +357,21 @@ export function Globe({ nodes, pulse }: Props) {
         const mat = (dot as THREE.Mesh).material as THREE.MeshBasicMaterial;
         _tempColor.set(baseHex);
         mat.color.lerpColors(_tempColor, _whiteColor, intensity * 0.75);
-        (dot as THREE.Mesh).scale.setScalar(1 + intensity * 0.5);
+        let scale = 1 + intensity * 0.5;
+
+        // ── Wavefront: the node lights up at its usual delay after the block was first seen,
+        //    in one hue that runs from light (early) to dark (late)
+        const delay = waveRef.current.delay.get(node.id);
+        if (delay !== undefined) {
+          const since = now - waveRef.current.born - delay;
+          if (since >= 0 && since < WAVE_HOLD_MS) {
+            const k = 1 - since / WAVE_HOLD_MS;
+            _waveColor.setHSL(192 / 360, 0.9, 0.78 - Math.min(1, delay / WAVE_SCALE_MS) * 0.46);
+            mat.color.lerp(_waveColor, Math.min(1, k * 1.6));
+            scale = Math.max(scale, 1 + k * 1.6);
+          }
+        }
+        (dot as THREE.Mesh).scale.setScalar(scale);
       }
 
       // ── Block pulses: rings and arcs fade out and are removed ────────────────
@@ -429,6 +449,12 @@ export function Globe({ nodes, pulse }: Props) {
     const origin = all.find((n) => n.id === pulse.id);
     if (!origin || (origin.lat === 0 && origin.lng === 0)) return;
     const now = performance.now();
+    waveRef.current = {
+      born: now,
+      delay: new Map(
+        all.filter((n) => n.status === 'synced').map((n) => [n.id, n.id === origin.id ? 0 : n.prop || 0]),
+      ),
+    };
     const from = latLngToVec3(origin.lat, origin.lng, 1.006);
 
     for (const [delay, grow, opacity] of [
@@ -607,6 +633,14 @@ export function Globe({ nodes, pulse }: Props) {
   return (
     <div className="globe-wrapper">
       <div className="globe-mount" ref={mountRef} />
+      <div className="wave-key">
+        <span>BLOCK ARRIVAL</span>
+        <span className="wave-ramp" />
+        <span className="wave-ends">
+          <span>first</span>
+          <span>+{WAVE_SCALE_MS.toLocaleString('en-US')} ms</span>
+        </span>
+      </div>
       <div ref={tooltipRef} className="globe-node-tooltip" style={{ display: 'none' }} />
     </div>
   );

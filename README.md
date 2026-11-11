@@ -17,7 +17,11 @@ Version 2 adds realtime chain statistics:
   block size, certificate votes, proposer payouts and top proposers, all decoded from the blocks the
   relays serve. No indexer, no algod API token
 - **Block propagation**: how long relays take to show a block after the first one does
-- **3D globe**: nodes plotted by location; each new block draws a ring at the first node and arcs to the next ones
+- **3D globe with a propagation wavefront**: each new block draws a ring at the first node, arcs to the
+  next ones, and lights every relay at its usual delay
+- **Honeycomb wall**: one hex per node, fastest reply first, rippling in propagation order; hover for detail
+- **Block river, proposer ring, moments**: blocks as stacked slabs, the current proposer on a ring, and a
+  banner for bursts, slow rounds and nodes that drop or recover
 - **Status**: synced / lagging / behind / no answer (with the reason), IPv6 reachability per host
 - **Boot terminal**: Encom-style discovery sequence on first load
 - **Permissionless**: DNS SRV records and the public block endpoint are all it needs
@@ -81,7 +85,9 @@ Everything comes from `http://{ip}:{port}/v1/{genesis-id}/block/{round in base 3
 - **TPS**: growth of `tc` over the last 10 blocks divided by the `ts` time they span. `tc` counts inner
   transactions too, so "inner" in the chart is `tc` growth minus the top-level payset.
 - **Propagation**: for each round, the delay between the first node showing the block and every other
-  node showing it. The resolution is the poll interval (±`POLL_MS`) plus the round trip to the node.
+  node showing it. Nodes are polled every `FAST_POLL_MS` (100 ms) from shortly before a block is due until
+  they have it, and half the round trip is subtracted, so the resolution is about 100 ms. It is still a view
+  from one vantage point of when a block is _served_, not of gossip arrival.
 
 A node is marked **no answer** after three failed requests in a row. That is a statement about the path
 from the machine running Algotron: a relay behind a firewall that drops this host looks the same as a
@@ -100,7 +106,7 @@ backend/src/
 frontend/src/
   state.ts               WebSocket feed + reducer
   stats.ts               TPS, block time, proposers, fleet summary
-  components/            Globe, NodeStack, Chart, Kpis, BlockTape, Proposers ...
+  components/            Globe, HexWall, BlockRiver, Chart, Kpis, ProposerRing, Moments ...
 ```
 
 ## Message protocol
