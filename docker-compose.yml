@@ -1,24 +1,30 @@
+# Algotron: realtime Algorand relay / archiver dashboard (one Bun process: UI, /ws, /health).
+# Open: http://127.0.0.1:3001  (put a reverse proxy or Cloudflare in front for public use)
+# Other networks: set RELAY_SRV / ARCHIVER_SRV / NETWORK_ID / NETWORK_LABEL / EXPLORER in .env
+name: algotron
+
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  algotron:
+    build: .
+    image: algotron:2.0.0
+    container_name: algotron
+    # host networking: the backend dials relays over IPv4 and IPv6 from the host's own addresses
+    network_mode: host
     environment:
+      HOST: ${HOST:-127.0.0.1}
+      PORT: ${PORT:-3001}
       RELAY_SRV: ${RELAY_SRV:-_algobootstrap._tcp.mainnet.algorand.net}
       ARCHIVER_SRV: ${ARCHIVER_SRV:-_archive._tcp.mainnet.algorand.net}
       NETWORK_ID: ${NETWORK_ID:-mainnet-v1.0}
+      NETWORK_LABEL: ${NETWORK_LABEL:-ALGORAND MAINNET}
+      EXPLORER: ${EXPLORER:-https://allo.info}
+      POLL_MS: ${POLL_MS:-500}
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
     restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-      args:
-        VITE_NETWORK_ID: ${VITE_NETWORK_ID:-mainnet-v1.0}
-        VITE_NETWORK_LABEL: ${VITE_NETWORK_LABEL:-ALGORAND MAINNET}
-        VITE_EXPLORER: ${VITE_EXPLORER:-https://allo.info}
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }

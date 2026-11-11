@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { NodeCard } from './NodeCard.js';
-import { blockExplorerUrl } from '../config.js';
-import type { NodeState } from '../types/index.js';
+import type { NodeState } from '../../../shared/types.ts';
+import { NodeCard } from './NodeCard.tsx';
 
 interface Props {
   nodes: NodeState[];
@@ -9,24 +8,28 @@ interface Props {
 }
 
 const STATUS_ORDER: Record<string, number> = {
-  synced: 0, lagging: 1, orange: 2, offline: 3, unknown: 4,
+  synced: 0,
+  lagging: 1,
+  behind: 2,
+  offline: 3,
+  unknown: 4,
 };
 
-const Z_SPACING  = 90;   // px between consecutive planes
-const PLANE_SIZE = 25;   // 5 cols × 5 rows
+const Z_SPACING = 90; // px between consecutive planes
+const PLANE_SIZE = 25; // 5 cols × 5 rows
 
 export function NodeStack({ nodes, tipBlock }: Props) {
-  const groupRef    = useRef<HTMLDivElement>(null);
-  const frameRef    = useRef<number>(0);
-  const rotYRef     = useRef(0);    // current Y angle (degrees)
-  const rotXRef     = useRef(-8);   // current X angle; -8° = gentle "looking down" rest
-  const velRef      = useRef(0);    // Y drag momentum
-  const velXRef     = useRef(0);    // X drag momentum
-  const dragRef       = useRef({ active: false, lastX: 0, lastY: 0 });
-  const centerZRef    = useRef(0);
-  const clockRef      = useRef(0);    // oscillation time accumulator (seconds)
+  const groupRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number>(0);
+  const rotYRef = useRef(0); // current Y angle (degrees)
+  const rotXRef = useRef(-8); // current X angle; -8° = gentle "looking down" rest
+  const velRef = useRef(0); // Y drag momentum
+  const velXRef = useRef(0); // X drag momentum
+  const dragRef = useRef({ active: false, lastX: 0, lastY: 0 });
+  const centerZRef = useRef(0);
+  const clockRef = useRef(0); // oscillation time accumulator (seconds)
   const [planeOffset, setPlaneOffset] = useState(0);
-  const lastScrollRef = useRef(0);    // throttle: ms timestamp of last plane shift
+  const lastScrollRef = useRef(0); // throttle: ms timestamp of last plane shift
   const hoverFrontRef = useRef(false); // true while mouse is over the front pane
 
   // Sort: archivers first, then relays; within each type by status priority
@@ -46,7 +49,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
   const offset = planes.length > 1 ? planeOffset % planes.length : 0;
 
   // Center Z so the middle plane is at Z=0 (normal perspective size)
-  centerZRef.current = (planes.length - 1) * Z_SPACING / 2;
+  centerZRef.current = ((planes.length - 1) * Z_SPACING) / 2;
 
   // Animation loop — runs once on mount, reads refs on every frame
   useEffect(() => {
@@ -55,8 +58,8 @@ export function NodeStack({ nodes, tipBlock }: Props) {
     const tick = () => {
       frameRef.current = requestAnimationFrame(tick);
       const now = performance.now();
-      const dt  = Math.min((now - lastTime) / 1000, 0.1);
-      lastTime  = now;
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
 
       if (!dragRef.current.active) {
         // ── Y: sinusoidal oscillation ±35° ─────────────────────────────────
@@ -65,7 +68,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
         rotYRef.current += velRef.current;
         clockRef.current += dt;
         const targetY = Math.sin(clockRef.current * 0.22) * 35; // ~28 s period
-        const blendY  = 1 - Math.min(Math.abs(velRef.current) / 0.5, 1);
+        const blendY = 1 - Math.min(Math.abs(velRef.current) / 0.5, 1);
         rotYRef.current += (targetY - rotYRef.current) * 0.02 * blendY;
 
         // ── X: return to resting tilt ──────────────────────────────────────
@@ -74,12 +77,11 @@ export function NodeStack({ nodes, tipBlock }: Props) {
         rotXRef.current += velXRef.current;
         const blendX = 1 - Math.min(Math.abs(velXRef.current) / 0.5, 1);
         rotXRef.current += (-8 - rotXRef.current) * 0.025 * blendX;
-        rotXRef.current  = Math.max(-55, Math.min(55, rotXRef.current));
+        rotXRef.current = Math.max(-55, Math.min(55, rotXRef.current));
       }
 
       if (groupRef.current) {
-        groupRef.current.style.transform =
-          `rotateX(${rotXRef.current}deg) rotateY(${rotYRef.current}deg)`;
+        groupRef.current.style.transform = `rotateX(${rotXRef.current}deg) rotateY(${rotYRef.current}deg)`;
       }
     };
 
@@ -92,7 +94,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
     if (planes.length <= 1) return;
     const id = setInterval(() => {
       if (!hoverFrontRef.current) {
-        setPlaneOffset(o => (o + 1) % planes.length);
+        setPlaneOffset((o) => (o + 1) % planes.length);
       }
     }, 5000);
     return () => clearInterval(id);
@@ -100,7 +102,7 @@ export function NodeStack({ nodes, tipBlock }: Props) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
-    velRef.current  = 0;
+    velRef.current = 0;
     velXRef.current = 0;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -112,9 +114,9 @@ export function NodeStack({ nodes, tipBlock }: Props) {
     dragRef.current.lastX = e.clientX;
     dragRef.current.lastY = e.clientY;
     rotYRef.current += dx * 0.4;
-    rotXRef.current  = Math.max(-55, Math.min(55, rotXRef.current - dy * 0.4));
-    velRef.current   = dx * 0.4;
-    velXRef.current  = -dy * 0.4;
+    rotXRef.current = Math.max(-55, Math.min(55, rotXRef.current - dy * 0.4));
+    velRef.current = dx * 0.4;
+    velXRef.current = -dy * 0.4;
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -127,15 +129,17 @@ export function NodeStack({ nodes, tipBlock }: Props) {
     const now = performance.now();
     if (now - lastScrollRef.current < 300) return; // one shift per 300 ms
     lastScrollRef.current = now;
-    setPlaneOffset(o => e.deltaY > 0
-      ? (o + 1) % planes.length          // scroll down → first plane moves to back
-      : (o - 1 + planes.length) % planes.length, // scroll up → last plane comes to front
+    setPlaneOffset(
+      (o) =>
+        e.deltaY > 0
+          ? (o + 1) % planes.length // scroll down → first plane moves to back
+          : (o - 1 + planes.length) % planes.length, // scroll up → last plane comes to front
     );
   };
 
-  const relayCount    = nodes.filter(n => n.type === 'relay').length;
-  const archiverCount = nodes.filter(n => n.type === 'archiver').length;
-  const alertNodes    = sorted.filter(n => n.status !== 'synced');
+  const relayCount = nodes.filter((n) => n.type === 'relay').length;
+  const archiverCount = nodes.filter((n) => n.type === 'archiver').length;
+  const alertNodes = sorted.filter((n) => n.status !== 'synced' && n.status !== 'unknown');
 
   return (
     <div className="node-stack-wrapper">
@@ -146,17 +150,17 @@ export function NodeStack({ nodes, tipBlock }: Props) {
           {' · '}
           <span className="archiver-color">{archiverCount}A</span>
           {planes.length > 1 && (
-            <> · <span className="node-stack-plane-count">{planes.length} PLANES</span></>
+            <>
+              {' '}
+              · <span className="node-stack-plane-count">{planes.length} PLANES</span>
+            </>
           )}
-        </span>
-        <span className="node-grid-tip">
-          TIP: <a href={blockExplorerUrl(tipBlock)} target="_blank" rel="noreferrer" className="tip-value">#{tipBlock.toLocaleString()}</a>
         </span>
       </div>
 
       {alertNodes.length > 0 && (
         <div className="node-stack-alerts">
-          {alertNodes.map(node => (
+          {alertNodes.map((node) => (
             <NodeCard key={node.id} node={node} tipBlock={tipBlock} />
           ))}
         </div>
@@ -182,10 +186,22 @@ export function NodeStack({ nodes, tipBlock }: Props) {
                 style={{
                   position: pi === 0 ? 'relative' : 'absolute',
                   ...(pi > 0 ? { top: 0, left: 0, height: '100%' } : {}),
-                  transform: `translateZ(${centerZRef.current - relPos * Z_SPACING}px) scale(0.75)`,
+                  transform: `translateZ(${centerZRef.current - relPos * Z_SPACING}px) scale(0.58)`,
                 }}
-                onMouseEnter={relPos === 0 ? () => { hoverFrontRef.current = true; } : undefined}
-                onMouseLeave={relPos === 0 ? () => { hoverFrontRef.current = false; } : undefined}
+                onMouseEnter={
+                  relPos === 0
+                    ? () => {
+                        hoverFrontRef.current = true;
+                      }
+                    : undefined
+                }
+                onMouseLeave={
+                  relPos === 0
+                    ? () => {
+                        hoverFrontRef.current = false;
+                      }
+                    : undefined
+                }
               >
                 {plane.map((node: NodeState) => (
                   <NodeCard key={node.id} node={node} tipBlock={tipBlock} />
@@ -200,21 +216,36 @@ export function NodeStack({ nodes, tipBlock }: Props) {
         <div className="node-stack-scroll-hint" data-tooltip={`Scroll wheel cycles through planes of nodes`}>
           <svg width="14" height="34" viewBox="0 0 14 34" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* up arrow */}
-            <path d="M7 1L4 5M7 1L10 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+              d="M7 1L4 5M7 1L10 5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
             {/* mouse body */}
-            <rect x="1.5" y="8" width="11" height="18" rx="5.5" stroke="currentColor" strokeWidth="1.4"/>
+            <rect x="1.5" y="8" width="11" height="18" rx="5.5" stroke="currentColor" strokeWidth="1.4" />
             {/* center split */}
-            <line x1="7" y1="8" x2="7" y2="16" stroke="currentColor" strokeWidth="1.4"/>
+            <line x1="7" y1="8" x2="7" y2="16" stroke="currentColor" strokeWidth="1.4" />
             {/* scroll wheel nub */}
-            <rect x="5.5" y="11" width="3" height="5" rx="1.5" fill="currentColor"/>
+            <rect x="5.5" y="11" width="3" height="5" rx="1.5" fill="currentColor" />
             {/* down arrow */}
-            <path d="M7 33L4 29M7 33L10 29" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+              d="M7 33L4 29M7 33L10 29"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </div>
       )}
 
       {nodes.length === 0 && (
-        <div className="node-grid-empty">Discovering nodes<span className="ellipsis" /></div>
+        <div className="node-grid-empty">
+          Discovering nodes
+          <span className="ellipsis" />
+        </div>
       )}
     </div>
   );

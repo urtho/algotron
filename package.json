@@ -1,12 +1,29 @@
 {
   "name": "algotron",
+  "version": "2.0.0",
   "private": true,
-  "workspaces": ["backend", "frontend"],
+  "type": "module",
+  "license": "MPL-2.0",
   "scripts": {
-    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "build": "npm run build -w backend && npm run build -w frontend"
+    "dev": "bun --hot backend/src/server.ts",
+    "start": "NODE_ENV=production bun backend/src/server.ts",
+    "build": "bun build backend/src/server.ts --target=bun --production --outdir=dist",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@biomejs/biome": "^2.3.0",
+    "@types/bun": "latest",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.180.0",
+    "@typescript/native-preview": "latest"
   }
 }

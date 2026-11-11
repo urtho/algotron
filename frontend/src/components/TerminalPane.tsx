@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { LogEntry } from '../types/index.js';
+import type { LogEntry } from '../state.ts';
 
 interface Props {
   logs: LogEntry[];
@@ -32,6 +32,7 @@ export function TerminalPane({ logs }: Props) {
   }, []);
 
   // Auto-scroll using the pre-render near-bottom state
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when a line is added
   useEffect(() => {
     if (wasNearBottom.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' });
@@ -45,7 +46,7 @@ export function TerminalPane({ logs }: Props) {
         <span className="terminal-pane-count">{logs.length} entries</span>
       </div>
       <div className="terminal-pane-body" ref={containerRef}>
-        {logs.map(entry => (
+        {logs.map((entry) => (
           <div key={entry.id} className={`log-line ${LEVEL_CLASS[entry.level] ?? 'log-info'}`}>
             <span className="log-time">{formatTime(entry.ts)}</span>
             <span className="log-sep"> </span>

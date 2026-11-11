@@ -1,100 +1,68 @@
-interface GeoResult {
+export interface Geo {
   lat: number;
   lng: number;
   country: string;
   countryCode: string;
   city: string;
+  net: string;
 }
 
-interface IpApiResponse {
-  status: string;
+const EMPTY: Geo = { lat: 0, lng: 0, country: '', countryCode: '', city: '', net: '' };
+const cache = new Map<string, Geo>();
+
+interface IpApiRow {
+  status?: string;
   lat?: number;
   lon?: number;
   country?: string;
   countryCode?: string;
   city?: string;
+  as?: string;
   query?: string;
 }
 
-/** Process-lifetime cache — survives across WebSocket sessions. */
-const geoCache = new Map<string, GeoResult>();
+/** "AS16276 OVH SAS" -> "OVH" */
+function netName(as: string | undefined): string {
+  if (!as) return '';
+  const words = as.replace(/^AS\d+\s*/, '').split(/[\s,]+/);
+  return (words[0] ?? '').replace(/\.$/, '');
+}
 
 /**
- * Batch geolocate a list of IP addresses using ip-api.com free endpoint.
- * Results are cached for the lifetime of the backend process.
- * Returns a map from IP to geo data. Falls back to 0,0 on failure.
+ * Batch lookup at ip-api.com (free, no key, 100 addresses per request).
+ * Answers are cached for the life of the process; a failed lookup is not
+ * cached, so the next discovery run tries again.
  */
-export async function geolocateIPs(ips: string[]): Promise<Map<string, GeoResult>> {
-  const result = new Map<string, GeoResult>();
-
-  if (ips.length === 0) return result;
-
-  // Serve cached entries immediately; collect only the misses
-  const uncached: string[] = [];
-  for (const ip of ips) {
-    const hit = geoCache.get(ip);
-    if (hit) {
-      result.set(ip, hit);
-    } else {
-      uncached.push(ip);
-    }
-  }
-
-  if (uncached.length === 0) return result;
-
-  // ip-api.com allows up to 100 per batch request
-  const chunks: string[][] = [];
-  for (let i = 0; i < uncached.length; i += 100) {
-    chunks.push(uncached.slice(i, i + 100));
-  }
-
-  for (const chunk of chunks) {
+export async function geolocate(ips: string[]): Promise<Map<string, Geo>> {
+  const out = new Map<string, Geo>();
+  const missing = ips.filter((ip) => !cache.has(ip));
+  for (let i = 0; i < missing.length; i += 100) {
+    const chunk = missing.slice(i, i + 100);
     try {
-      const response = await fetch('http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,city,query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(chunk.map(ip => ({ query: ip }))),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (!response.ok) {
-        throw new Error(`ip-api.com returned ${response.status}`);
+      const res = await fetch(
+        'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,city,as,query',
+        {
+          method: 'POST',
+          body: JSON.stringify(chunk.map((query) => ({ query }))),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!res.ok) throw new Error(`ip-api.com ${res.status}`);
+      for (const row of (await res.json()) as IpApiRow[]) {
+        if (!row.query || row.status !== 'success') continue;
+        cache.set(row.query, {
+          lat: row.lat ?? 0,
+          lng: row.lon ?? 0,
+          country: row.country ?? '',
+          countryCode: row.countryCode ?? '',
+          city: row.city ?? '',
+          net: netName(row.as),
+        });
       }
-
-      const data = await response.json() as IpApiResponse[];
-
-      for (const entry of data) {
-        const ip = entry.query ?? '';
-        const geo: GeoResult = {
-          lat: entry.lat ?? 0,
-          lng: entry.lon ?? 0,
-          country: entry.country ?? '',
-          countryCode: entry.countryCode ?? '',
-          city: entry.city ?? '',
-        };
-        geoCache.set(ip, geo);
-        result.set(ip, geo);
-      }
-    } catch (_err) {
-      // Fallback: store 0,0 so we don't hammer the API on retry
-      for (const ip of chunk) {
-        if (!result.has(ip)) {
-          const fallback: GeoResult = { lat: 0, lng: 0, country: '', countryCode: '', city: '' };
-          geoCache.set(ip, fallback);
-          result.set(ip, fallback);
-        }
-      }
+    } catch (err) {
+      console.warn(`[GEO] lookup failed: ${err instanceof Error ? err.message : err}`);
     }
   }
-
-  // Safety net: guarantee every requested IP has an entry
-  for (const ip of ips) {
-    if (!result.has(ip)) {
-      const fallback: GeoResult = { lat: 0, lng: 0, country: '', countryCode: '', city: '' };
-      geoCache.set(ip, fallback);
-      result.set(ip, fallback);
-    }
-  }
-
-  return result;
+  for (const ip of ips) out.set(ip, cache.get(ip) ?? EMPTY);
+  return out;
 }

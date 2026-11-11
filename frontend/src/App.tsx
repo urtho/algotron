@@ -1,29 +1,21 @@
-import { useAppWebSocket } from './hooks/useAppWebSocket.js';
-import { BootTerminal } from './components/BootTerminal.js';
-import { Dashboard } from './components/Dashboard.js';
+import { useCallback, useState } from 'react';
+import { BootTerminal } from './components/BootTerminal.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { useFeed } from './state.ts';
 
 export function App() {
-  const state = useAppWebSocket();
+  const state = useFeed();
+  // The boot terminal plays once per page load; a later reconnect goes straight to the dashboard
+  const [booted, setBooted] = useState(false);
+  const done = useCallback(() => setBooted(true), []);
 
   return (
     <div className="app">
-      {/* Show boot terminal during connection / booting phases */}
-      {(state.phase === 'connecting' || state.phase === 'booting') && (
-        <BootTerminal logs={state.bootLogs} />
-      )}
-
-      {/* Dashboard is always mounted so Three.js initialises early, but
-          it's invisible until boot completes to avoid layout flash */}
-      <div style={{ opacity: state.phase === 'running' ? 1 : 0, transition: 'opacity 0.8s' }}>
+      {!booted && <BootTerminal lines={state.bootLines} ready={state.ready} onDone={done} />}
+      {/* Mounted from the start so Three.js is ready when the terminal closes */}
+      <div className="app-dash" style={{ opacity: booted ? 1 : 0 }}>
         <Dashboard state={state} />
       </div>
-
-      {/* Reconnecting banner */}
-      {state.phase === 'connecting' && state.bootLogs.length === 0 && (
-        <div className="connecting-banner">
-          Connecting to Algotron backend<span className="ellipsis" />
-        </div>
-      )}
     </div>
   );
 }

@@ -1,19 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { NodeState } from '../types/index.js';
-import { algoLogo } from './algologo.js';
+import type { NodeState } from '../../../shared/types.ts';
+import land from '../assets/land-110m.json';
+import { algoLogo } from './algologo.tsx';
 
 interface Props {
   nodes: NodeState[];
-  healthyRelays: number;
-  healthyArchivers: number;
+  /** Newest block and the node that showed it first: drawn as a ring and arcs to other nodes */
+  pulse?: { round: number; id: string };
+}
+
+interface Fx {
+  obj: THREE.Mesh | THREE.Line;
+  born: number;
+  life: number;
+  grow: number;
+  opacity: number;
 }
 
 // GeoJSON geometry types we care about
-interface GeoPolygon      { type: 'Polygon';      coordinates: number[][][];  }
-interface GeoMultiPolygon { type: 'MultiPolygon'; coordinates: number[][][][]; }
+interface GeoPolygon {
+  type: 'Polygon';
+  coordinates: number[][][];
+}
+interface GeoMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: number[][][][];
+}
 type GeoGeometry = GeoPolygon | GeoMultiPolygon | { type: string };
-interface GeoFeature { geometry: GeoGeometry; }
+interface GeoFeature {
+  geometry: GeoGeometry;
+}
 
 // Convert geographic coordinates to 3-D position on a unit sphere
 function latLngToVec3(lat: number, lng: number, r = 1): THREE.Vector3 {
@@ -26,17 +43,18 @@ function latLngToVec3(lat: number, lng: number, r = 1): THREE.Vector3 {
   );
 }
 
-const STATUS_COLORS: Record<string, number> = {
+const STATUS_COLORS: Record<NodeState['status'], number> = {
   synced: 0x00ff88,
   lagging: 0xffff00,
-  orange: 0xff8800,
+  behind: 0xff8800,
   offline: 0xff2222,
   unknown: 0x336655,
 };
 
 const ARCHIVER_COLOR = 0x00aaff;
+const ARC_POINTS = 48;
 
-export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
+export function Globe({ nodes, pulse }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const dotsGroupRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -44,6 +62,10 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const nodeMapRef = useRef<Map<THREE.Object3D, NodeState>>(new Map());
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const fxGroupRef = useRef<THREE.Group | null>(null);
+  const fxRef = useRef<Fx[]>([]);
+  const nodesRef = useRef<NodeState[]>(nodes);
+  nodesRef.current = nodes;
 
   // ── Initial Three.js setup (runs once) ──────────────────────────────────────
   useEffect(() => {
@@ -142,7 +164,7 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     for (let i = 0; i < TRAIL_COUNT; i++) {
       const t = i / (TRAIL_COUNT - 1);
       const lngOffset = -t * TRAIL_SPREAD_DEG;
-      const opacity = Math.pow(1 - t, 1.4) * 0.82;
+      const opacity = (1 - t) ** 1.4 * 0.82;
       if (opacity < 0.01) continue;
 
       const pts: THREE.Vector3[] = [];
@@ -150,16 +172,22 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         pts.push(latLngToVec3(lat, lngOffset, 1.004));
       }
 
-      scanGroup.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity }),
-      ));
+      scanGroup.add(
+        new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity }),
+        ),
+      );
     }
 
     // ── Node dots group ───────────────────────────────────────────────────────
     const dotsGroup = new THREE.Group();
     globeGroup.add(dotsGroup);
     dotsGroupRef.current = dotsGroup;
+
+    const fxGroup = new THREE.Group();
+    globeGroup.add(fxGroup);
+    fxGroupRef.current = fxGroup;
 
     // ── Lights ────────────────────────────────────────────────────────────────
     const ambient = new THREE.AmbientLight(0x112244, 1.5);
@@ -170,8 +198,8 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
     // ── HUD: Algorand logo pinned to lower-left, independent of globe ─────────
     // Logo geometry spans ~3.58 Three.js units; scale to ~80 screen pixels.
-    const LOGO_SCALE  = 22;
-    const LOGO_HALF   = (3.58 * LOGO_SCALE) / 2; // ≈ 39 px
+    const LOGO_SCALE = 22;
+    const LOGO_HALF = (3.58 * LOGO_SCALE) / 2; // ≈ 39 px
     const LOGO_MARGIN = 16;
 
     const hudScene = new THREE.Scene();
@@ -190,40 +218,32 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     hudScene.add(logoGroup);
 
     // ── Continent contours ────────────────────────────────────────────────────
-    let destroyed = false;
     const landMat = new THREE.LineBasicMaterial({
       color: 0x00662e,
       transparent: true,
       opacity: 0.8,
     });
+    {
+      const geojson = land as unknown as { features: GeoFeature[] };
+      const contourGroup = new THREE.Group();
 
-    void fetch('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_land.geojson')
-      .then(r => r.json())
-      .then((geojson: { features: GeoFeature[] }) => {
-        if (destroyed) return;
-        const contourGroup = new THREE.Group();
+      function addRing(coords: number[][]) {
+        if (coords.length < 2) return;
+        const pts = coords.map(([lng, lat]) => latLngToVec3(lat!, lng!, 1.002));
+        contourGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), landMat));
+      }
 
-        function addRing(coords: number[][]) {
-          if (coords.length < 2) return;
-          const pts = coords.map(([lng, lat]) => latLngToVec3(lat, lng, 1.002));
-          contourGroup.add(new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(pts),
-            landMat,
-          ));
+      for (const f of geojson.features) {
+        const g = f.geometry;
+        if (g.type === 'Polygon') {
+          for (const ring of (g as GeoPolygon).coordinates) addRing(ring);
+        } else if (g.type === 'MultiPolygon') {
+          for (const poly of (g as GeoMultiPolygon).coordinates) for (const ring of poly) addRing(ring);
         }
+      }
 
-        for (const f of geojson.features) {
-          const g = f.geometry;
-          if (g.type === 'Polygon') {
-            for (const ring of (g as GeoPolygon).coordinates) addRing(ring);
-          } else if (g.type === 'MultiPolygon') {
-            for (const poly of (g as GeoMultiPolygon).coordinates)
-              for (const ring of poly) addRing(ring);
-          }
-        }
-
-        globeGroup.add(contourGroup);
-      });
+      globeGroup.add(contourGroup);
+    }
 
     // ── Drag-to-rotate ────────────────────────────────────────────────────────
     let isDragging = false;
@@ -254,8 +274,8 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       // Raycast to find hovered node dot
       const rect = container.getBoundingClientRect();
       const mouse = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width)  *  2 - 1,
-        ((e.clientY - rect.top)  / rect.height) * -2 + 1,
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        ((e.clientY - rect.top) / rect.height) * -2 + 1,
       );
       raycasterRef.current.setFromCamera(mouse, camera);
       const hits = raycasterRef.current.intersectObjects(
@@ -265,11 +285,20 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       const tooltip = tooltipRef.current;
       if (!tooltip) return;
       if (hits.length > 0) {
-        const node = nodeMapRef.current.get(hits[0].object);
+        const node = nodeMapRef.current.get(hits[0]!.object);
         if (node) {
-          tooltip.textContent = `${node.label} · ${node.status}`;
+          const live = nodesRef.current.find((n) => n.id === node.id) ?? node;
+          tooltip.textContent = [
+            live.label,
+            live.status + (live.err ? ` (${live.err})` : ''),
+            live.city,
+            live.net,
+            live.rtt ? `${Math.round(live.rtt)} ms` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
           tooltip.style.left = `${e.clientX - rect.left + 14}px`;
-          tooltip.style.top  = `${e.clientY - rect.top  - 10}px`;
+          tooltip.style.top = `${e.clientY - rect.top - 10}px`;
           tooltip.style.display = 'block';
         }
       } else {
@@ -288,16 +317,16 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     };
 
     container.style.cursor = 'grab';
-    container.addEventListener('pointerdown',  onPointerDown);
-    container.addEventListener('pointermove',  onPointerMove);
-    container.addEventListener('pointerup',    onPointerUp);
-    container.addEventListener('pointercancel',onPointerUp);
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointermove', onPointerMove);
+    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointercancel', onPointerUp);
     container.addEventListener('pointerleave', onPointerLeave);
 
     // ── Slow rotation & scan ──────────────────────────────────────────────────
     let lastTime = performance.now();
     let scanAngle = 0;
-    const _tempColor  = new THREE.Color();
+    const _tempColor = new THREE.Color();
     const _whiteColor = new THREE.Color(0xffffff);
 
     const animate = () => {
@@ -307,24 +336,41 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       lastTime = now;
       if (!isDragging) globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
       logoGroup.rotation.y -= 0.8 * dt; // ~1 revolution per 7.9 s
-      scanAngle += (2 * Math.PI / 2.8) * dt; // one full revolution per 2.8 s
+      scanAngle += ((2 * Math.PI) / 2.8) * dt; // one full revolution per 2.8 s
       scanGroup.rotation.y = scanAngle;
 
       // ── Scanner glow: brighten & enlarge nodes under the leading meridian ───
       for (const [dot, node] of nodeMapRef.current) {
         // Node's angle in globeGroup x-z plane: lng=0 → angle 0, lng=90 → -π/2
         const nodeAngle = -node.lng * (Math.PI / 180);
-        let diff = ((-scanAngle - nodeAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        let diff = (((-scanAngle - nodeAngle) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
         if (diff > Math.PI) diff -= 2 * Math.PI; // normalise to (-π, π]
 
         const intensity = Math.max(0, 1 - Math.abs(diff + 0.18) / 0.22); // peak 0.18 rad behind leading edge
-        const baseHex = node.type === 'archiver'
-          ? ARCHIVER_COLOR
-          : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
+        const baseHex = node.type === 'archiver' ? ARCHIVER_COLOR : STATUS_COLORS[node.status];
         const mat = (dot as THREE.Mesh).material as THREE.MeshBasicMaterial;
         _tempColor.set(baseHex);
         mat.color.lerpColors(_tempColor, _whiteColor, intensity * 0.75);
         (dot as THREE.Mesh).scale.setScalar(1 + intensity * 0.5);
+      }
+
+      // ── Block pulses: rings and arcs fade out and are removed ────────────────
+      const fx = fxRef.current;
+      for (let i = fx.length - 1; i >= 0; i--) {
+        const f = fx[i]!;
+        const t = (now - f.born) / f.life;
+        const mat = f.obj.material as THREE.Material;
+        if (t >= 1) {
+          fxGroup.remove(f.obj);
+          f.obj.geometry.dispose();
+          mat.dispose();
+          fx.splice(i, 1);
+          continue;
+        }
+        if (t < 0) continue;
+        mat.opacity = f.opacity * (1 - t) ** 1.5;
+        if (f.grow) f.obj.scale.setScalar(1 + f.grow * t);
+        else (f.obj as THREE.Line).geometry.setDrawRange(0, Math.ceil(ARC_POINTS * Math.min(1, t * 2.2)));
       }
 
       renderer.render(scene, camera);
@@ -345,9 +391,9 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
       // Keep HUD camera and logo position in sync with canvas size
-      hudCam.left   = -nw / 2;
-      hudCam.right  =  nw / 2;
-      hudCam.top    =  nh / 2;
+      hudCam.left = -nw / 2;
+      hudCam.right = nw / 2;
+      hudCam.top = nh / 2;
       hudCam.bottom = -nh / 2;
       hudCam.updateProjectionMatrix();
       logoGroup.position.set(-nw / 2 + LOGO_MARGIN + LOGO_HALF, -nh / 2 + LOGO_MARGIN + LOGO_HALF, 0);
@@ -355,22 +401,94 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
     ro.observe(container);
 
     return () => {
-      destroyed = true;
       cancelAnimationFrame(frameRef.current);
       ro.disconnect();
-      container.removeEventListener('pointerdown',  onPointerDown);
-      container.removeEventListener('pointermove',  onPointerMove);
-      container.removeEventListener('pointerup',    onPointerUp);
-      container.removeEventListener('pointercancel',onPointerUp);
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointermove', onPointerMove);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointercancel', onPointerUp);
       container.removeEventListener('pointerleave', onPointerLeave);
       renderer.dispose();
       renderer.domElement.remove();
       rendererRef.current = null;
       dotsGroupRef.current = null;
+      fxGroupRef.current = null;
+      fxRef.current = [];
     };
   }, []);
 
+  // Rebuild the meshes only when a node appears, moves or changes status
+  const signature = useMemo(() => nodes.map((n) => `${n.id}:${n.status}:${n.lat}`).join('|'), [nodes]);
+
+  // ── New block: ring at the first node, arcs to the nodes that follow ─────────
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fires once per round
+  useEffect(() => {
+    const group = fxGroupRef.current;
+    if (!group || !pulse || document.hidden) return;
+    const all = nodesRef.current;
+    const origin = all.find((n) => n.id === pulse.id);
+    if (!origin || (origin.lat === 0 && origin.lng === 0)) return;
+    const now = performance.now();
+    const from = latLngToVec3(origin.lat, origin.lng, 1.006);
+
+    for (const [delay, grow, opacity] of [
+      [0, 9, 0.9],
+      [180, 16, 0.5],
+    ] as const) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.012, 0.016, 48),
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      ring.position.copy(from);
+      ring.lookAt(from.clone().multiplyScalar(2));
+      group.add(ring);
+      fxRef.current.push({ obj: ring, born: now + delay, life: 1500, grow, opacity });
+    }
+
+    // arcs to the fastest followers, one per location
+    const seen = new Set<string>([`${origin.lat},${origin.lng}`]);
+    const targets = all
+      .filter((n) => n.status === 'synced' && (n.lat !== 0 || n.lng !== 0))
+      .sort((a, b) => (a.prop || 9e9) - (b.prop || 9e9))
+      .filter((n) => {
+        const k = `${n.lat},${n.lng}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 14);
+    const a = from.clone().normalize();
+    targets.forEach((n, i) => {
+      const b = latLngToVec3(n.lat, n.lng, 1).normalize();
+      const angle = a.angleTo(b);
+      if (angle < 0.02) return;
+      const pts: THREE.Vector3[] = [];
+      for (let k = 0; k <= ARC_POINTS; k++) {
+        const t = k / ARC_POINTS;
+        const p = a
+          .clone()
+          .multiplyScalar(Math.sin((1 - t) * angle))
+          .addScaledVector(b, Math.sin(t * angle));
+        pts.push(p.normalize().multiplyScalar(1.006 + Math.sin(Math.PI * t) * Math.min(0.3, angle * 0.12)));
+      }
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.75, depthWrite: false }),
+      );
+      line.geometry.setDrawRange(0, 0);
+      group.add(line);
+      fxRef.current.push({ obj: line, born: now + i * 25, life: 1300 + angle * 300, grow: 0, opacity: 0.75 });
+    });
+  }, [pulse?.round]);
+
   // ── Sync node dots when `nodes` changes ──────────────────────────────────────
+  // biome-ignore lint/correctness/useExhaustiveDependencies: signature stands for the node list
   useEffect(() => {
     const group = dotsGroupRef.current;
     if (!group) return;
@@ -386,30 +504,31 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
     const archiverDotGeo = new THREE.SphereGeometry(0.018, 8, 8);
 
-    for (const node of nodes) {
+    for (const node of nodesRef.current) {
       if (node.lat === 0 && node.lng === 0) continue;
 
-      const colorHex = node.type === 'archiver'
-        ? ARCHIVER_COLOR
-        : (STATUS_COLORS[node.status] ?? STATUS_COLORS.unknown);
+      const colorHex = node.type === 'archiver' ? ARCHIVER_COLOR : STATUS_COLORS[node.status];
 
       if (node.type === 'relay') {
         // ── Satellite-style relay ────────────────────────────────────────────
         const satRadius =
-          node.status === 'synced'  ? 1.10 :
-          node.status === 'lagging' ? 1.11 :
-          node.status === 'orange'  ? 1.12 :
-          node.status === 'offline' ? 1.13 : 1.10;
+          node.status === 'synced'
+            ? 1.1
+            : node.status === 'lagging'
+              ? 1.11
+              : node.status === 'behind'
+                ? 1.12
+                : node.status === 'offline'
+                  ? 1.13
+                  : 1.1;
 
-        const pos        = latLngToVec3(node.lat, node.lng, satRadius);
+        const pos = latLngToVec3(node.lat, node.lng, satRadius);
         const surfacePos = latLngToVec3(node.lat, node.lng, 1.003);
 
         // Tangent-space orientation: Z = outward, X = east-west, Y = north-south
         const outward = pos.clone().normalize();
         const rawEast = new THREE.Vector3().crossVectors(outward, new THREE.Vector3(0, 1, 0));
-        const eastDir = rawEast.lengthSq() > 0.01
-          ? rawEast.normalize()
-          : new THREE.Vector3(1, 0, 0);
+        const eastDir = rawEast.lengthSq() > 0.01 ? rawEast.normalize() : new THREE.Vector3(1, 0, 0);
         const northDir = new THREE.Vector3().crossVectors(eastDir, outward).normalize();
         const satQuat = new THREE.Quaternion().setFromRotationMatrix(
           new THREE.Matrix4().makeBasis(eastDir, northDir, outward),
@@ -418,14 +537,14 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         // Flat satellite body (appears as square when viewed from outside)
         const bodyGeo = new THREE.BoxGeometry(0.013, 0.013, 0.004);
         const bodyMat = new THREE.MeshBasicMaterial({ color: colorHex });
-        const body    = new THREE.Mesh(bodyGeo, bodyMat);
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
         body.position.copy(pos);
         body.quaternion.copy(satQuat);
         group.add(body);
         nodeMapRef.current.set(body, node);
 
         // Solar panel wings (extend east-west)
-        const wingGeo = new THREE.BoxGeometry(0.020, 0.003, 0.003);
+        const wingGeo = new THREE.BoxGeometry(0.02, 0.003, 0.003);
         const wingMat = new THREE.MeshBasicMaterial({ color: 0x7a7a24 });
         for (const side of [1, -1]) {
           const wing = new THREE.Mesh(wingGeo, wingMat);
@@ -436,25 +555,32 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
         // Signal beam cone: tip at satellite, base spreading at surface
         const beamHeight = satRadius - 1.003;
-        const beamMid    = new THREE.Vector3().addVectors(pos, surfacePos).multiplyScalar(0.5);
-        const coneGeo    = new THREE.ConeGeometry(0.108, beamHeight, 6, 1, true);
-        const coneMat    = new THREE.MeshBasicMaterial({
-          color: colorHex, transparent: true, opacity: 0.03,
-          side: THREE.DoubleSide, depthWrite: false,
+        const beamMid = new THREE.Vector3().addVectors(pos, surfacePos).multiplyScalar(0.5);
+        const coneGeo = new THREE.ConeGeometry(0.108, beamHeight, 6, 1, true);
+        const coneMat = new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.03,
+          side: THREE.DoubleSide,
+          depthWrite: false,
         });
         const cone = new THREE.Mesh(coneGeo, coneMat);
         cone.position.copy(beamMid);
         // Align cone's +Y axis with the outward (satellite→surface is -outward, so apex at +Y = satellite side)
         cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
         group.add(cone);
-
       } else {
         // ── Archiver (sphere + halo ring) ────────────────────────────────────
         const radius =
-          node.status === 'synced'  ? 1.025 :
-          node.status === 'lagging' ? 1.030  :
-          node.status === 'orange'  ? 1.035  :
-          node.status === 'offline' ? 1.040  : 1.025;
+          node.status === 'synced'
+            ? 1.025
+            : node.status === 'lagging'
+              ? 1.03
+              : node.status === 'behind'
+                ? 1.035
+                : node.status === 'offline'
+                  ? 1.04
+                  : 1.025;
 
         const mat = new THREE.MeshBasicMaterial({ color: colorHex });
         const dot = new THREE.Mesh(archiverDotGeo, mat);
@@ -465,7 +591,10 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
 
         const ringGeo = new THREE.RingGeometry(0.025, 0.035, 16);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x00aaff, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+          color: 0x00aaff,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.position.copy(pos);
@@ -473,18 +602,10 @@ export function Globe({ nodes, healthyRelays, healthyArchivers }: Props) {
         group.add(ring);
       }
     }
-  }, [nodes]);
+  }, [signature]);
 
   return (
     <div className="globe-wrapper">
-      <div className="globe-counter globe-counter-left">
-        <span className="counter-label">RELAYS</span>
-        <span className="counter-value relay-color">{healthyRelays}</span>
-      </div>
-      <div className="globe-counter globe-counter-right">
-        <span className="counter-value archiver-color">{healthyArchivers}</span>
-        <span className="counter-label">ARCHIVERS</span>
-      </div>
       <div className="globe-mount" ref={mountRef} />
       <div ref={tooltipRef} className="globe-node-tooltip" style={{ display: 'none' }} />
     </div>

@@ -1,35 +1,20 @@
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
-
+# Algotron: one Bun process serves the dashboard, /ws and /health.
+FROM oven/bun:1.4.3-alpine AS build
 WORKDIR /app
-
-# Install workspace root deps first (better layer caching)
-COPY package.json package-lock.json* ./
-COPY backend/package.json ./backend/
-COPY frontend/package.json ./frontend/
-RUN npm install --workspace=backend --ignore-scripts
-
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY tsconfig.json ./
+COPY shared ./shared
 COPY backend ./backend
-RUN npm run build -w backend
+COPY frontend ./frontend
+RUN bun run build
 
-# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM node:22-alpine
-
+FROM oven/bun:1.4.3-alpine
 WORKDIR /app
-
-COPY --from=builder /app/backend/dist ./dist
-
-# Re-install only production dependencies
-COPY backend/package.json ./
-RUN npm install --omit=dev --ignore-scripts
-
-ENV RELAY_SRV=_algobootstrap._tcp.mainnet.algorand.net
-ENV ARCHIVER_SRV=_archive._tcp.mainnet.algorand.net
-ENV NETWORK_ID=mainnet-v1.0
-
+ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
+COPY --from=build /app/dist ./
+USER bun
 EXPOSE 3001
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-  CMD wget -qO- http://localhost:3001/health || exit 1
-
-CMD ["node", "dist/server.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+  CMD wget -qO- http://127.0.0.1:${PORT}/health || exit 1
+CMD ["bun", "server.js"]
