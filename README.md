@@ -65,17 +65,18 @@ docker compose up -d --build
 
 Environment variables, all optional:
 
-| Variable          | Default                                    | Meaning                                   |
-| ----------------- | ------------------------------------------ | ----------------------------------------- |
-| `RELAY_SRV`       | `_algobootstrap._tcp.mainnet.algorand.net` | Relay SRV record (`NONE` to skip)         |
-| `ARCHIVER_SRV`    | `_archive._tcp.mainnet.algorand.net`       | Archiver SRV record (`NONE` to skip)      |
-| `NETWORK_ID`      | `mainnet-v1.0`                             | Genesis ID used in the block URL          |
-| `NETWORK_LABEL`   | `ALGORAND MAINNET`                         | Shown in the top bar                      |
-| `EXPLORER`        | `https://allo.info`                        | Base URL for block and account links      |
-| `HOST` / `PORT`   | `0.0.0.0` / `3001`                         | Listener                                  |
-| `POLL_MS`         | `500`                                      | Pause between two polls of one node       |
-| `BACKFILL_BLOCKS` | `240`                                      | Blocks loaded at start to fill the charts |
-| `AVMONITOR_URL`   | unset                                      | avmonitor v2 base URL; unset means polled propagation |
+| Variable          | Default                                    | Meaning                                                    |
+| ----------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| `RELAY_SRV`       | `_algobootstrap._tcp.mainnet.algorand.net` | Relay SRV record (`NONE` to skip)                          |
+| `ARCHIVER_SRV`    | `_archive._tcp.mainnet.algorand.net`       | Archiver SRV record (`NONE` to skip)                       |
+| `NETWORK_ID`      | `mainnet-v1.0`                             | Genesis ID used in the block URL                           |
+| `NETWORK_LABEL`   | `ALGORAND MAINNET`                         | Shown in the top bar                                       |
+| `EXPLORER`        | `https://allo.info`                        | Base URL for block and account links                       |
+| `HOST` / `PORT`   | `0.0.0.0` / `3001`                         | Listener                                                   |
+| `POLL_MS`         | `500`                                      | Pause between two polls of one node while no block is due  |
+| `FAST_POLL_MS`    | `100`                                      | Pause while a block is due (polled propagation resolution) |
+| `BACKFILL_BLOCKS` | `240`                                      | Blocks loaded at start to fill the charts                  |
+| `AVMONITOR_URL`   | unset                                      | avmonitor v2 base URL; unset means polled propagation      |
 
 The label and explorer are sent to the browser at runtime, so one image serves any network.
 
