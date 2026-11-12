@@ -140,7 +140,7 @@ export class SoundPlayer {
   private master?: GainNode;
   private room?: ConvolverNode;
   private noise?: AudioBuffer;
-  private volume = 0.7;
+  private volume = 0.75;
   private name?: SoundName;
   private live: Bus[] = [];
   /** Bar clock for the rhythmic sounds */

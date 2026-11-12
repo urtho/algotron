@@ -563,16 +563,42 @@
 .hex--behind .hex-sub {
   fill: var(--ink);
 }
-/* the wall as sound: a switch and, while it plays, a volume */
+/* the wall as sound: a column to the right of the hexes, off first, then the sounds and the volume */
+.hexwall-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .hex-sound {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  flex: 0 0 104px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 10px 6px 8px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+.hex-sound .seg-item + .seg-item {
+  border-left: 1px solid var(--border2);
+}
+.hex-sound .seg-item--on,
+.hex-sound .seg-item--on + .seg-item--on {
+  border-color: var(--cyan);
+}
+.hex-sound-title {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.hex-sound label.hex-sound-title {
+  margin-top: 4px;
 }
 .hex-volume {
-  width: 70px;
+  width: 100%;
   height: 12px;
+  margin: 0;
   accent-color: var(--cyan);
 }
 .hex-key {

@@ -53,9 +53,10 @@ export function HexWall(props: {
   // the wall as sound: off until someone picks one (a page may only make sound after a click)
   const player = useRef<SoundPlayer | null>(null);
   const [sound, setSound] = useState<SoundName | null>(null);
-  const [volume, setVolume] = useState(0.7);
+  const [volume, setVolume] = useState(0.75);
   const pick = (name: SoundName | null) => {
     player.current ??= new SoundPlayer();
+    player.current.setVolume(volume);
     if (name) player.current.start(name);
     else player.current.stop();
     setSound(name);
@@ -135,123 +136,124 @@ export function HexWall(props: {
             {nodes.length - relays} archivers
           </span>
         </span>
-        <span className="hex-sound">
-          <span className="seg">
-            <button
-              type="button"
-              className={`seg-item${sound === null ? ' seg-item--on' : ''}`}
-              aria-pressed={sound === null}
-              onClick={() => pick(null)}
-            >
-              SOUND OFF
-            </button>
-            {SOUNDS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={`seg-item${sound === name ? ' seg-item--on' : ''}`}
-                aria-pressed={sound === name}
-                onClick={() => pick(name)}
-              >
-                {SOUND_LABELS[name]}
-              </button>
-            ))}
-          </span>
-          {sound && (
-            <input
-              id="hex-sound-volume"
-              className="hex-volume"
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(volume * 100)}
-              aria-label="Sound volume"
-              onChange={(e) => {
-                const v = Number(e.target.value) / 100;
-                setVolume(v);
-                player.current?.setVolume(v);
-              }}
-            />
-          )}
-        </span>
       </header>
-      <div className="hexwall-body" ref={wrap} onPointerLeave={() => setHover(null)}>
-        {size.w > 0 && (
-          <svg width={size.w} height={size.h} role="img" aria-label="Relay and archiver status wall">
-            {sorted.map((n, i) => {
-              const row = Math.floor(i / cols);
-              const cx = x0 + (i % cols) * SQ3 * r + (row % 2 ? (SQ3 * r) / 2 : 0);
-              const cy = y0 + row * 1.5 * r;
-              const pts = hexPoints(cx, cy, r - 2);
-              const lag = tipBlock - n.lastBlock;
-              const line2 =
-                n.status === 'offline'
-                  ? (n.err ?? 'no answer')
-                  : n.status === 'behind'
-                    ? `-${lag.toLocaleString('en-US')}`
-                    : n.rtt
-                      ? `${Math.round(n.rtt)} ms`
-                      : '';
-              return (
-                <g
-                  key={n.id}
-                  className={`hex hex--${n.status} hex--${n.type}`}
-                  onPointerEnter={() => setHover({ id: n.id, x: cx, y: cy })}
-                >
-                  <polygon points={pts} className="hex-cell" />
-                  {wave?.delays[n.id] !== undefined && (
-                    <polygon
-                      key={wave.round}
-                      points={pts}
-                      className="hex-flash"
-                      style={{ animationDelay: `${Math.round(plan.at(wave.delays[n.id]!))}ms` }}
-                    />
-                  )}
-                  {r >= 17 && (
-                    <text
-                      x={cx}
-                      y={cy - (r >= 24 ? 2 : -3)}
-                      className="hex-label"
-                      style={{ fontSize: Math.min(13, r * 0.42) }}
-                    >
-                      {n.label}
-                    </text>
-                  )}
-                  {r >= 24 && (
-                    <text
-                      x={cx}
-                      y={cy + r * 0.42}
-                      className="hex-sub"
-                      style={{ fontSize: Math.min(10, r * 0.32) }}
-                    >
-                      {line2}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        )}
-        {hovered && hover && (
-          <div
-            className="hex-detail"
-            style={{
-              top: Math.max(4, Math.min(size.h - 78, hover.y - 36)),
-              ...(hover.x > size.w / 2 ? { right: size.w - hover.x + r } : { left: hover.x + r }),
-            }}
-          >
-            <NodeCard node={hovered} tipBlock={tipBlock} />
-            <div className="hex-detail-more">
-              {hovered.net} ·{' '}
-              {hovered.prop
-                ? `+${hovered.prop < 100 ? hovered.prop.toFixed(1) : Math.round(hovered.prop)} ms after first`
-                : 'no delay data'}
-              {hovered.soft !== undefined && ` · soft +${hovered.soft.toFixed(1)}`}
-              {hovered.cert !== undefined && ` · cert +${hovered.cert.toFixed(1)}`} · first on{' '}
-              {hovered.firsts} blocks
+      <div className="hexwall-main">
+        <div className="hexwall-body" ref={wrap} onPointerLeave={() => setHover(null)}>
+          {size.w > 0 && (
+            <svg width={size.w} height={size.h} role="img" aria-label="Relay and archiver status wall">
+              {sorted.map((n, i) => {
+                const row = Math.floor(i / cols);
+                const cx = x0 + (i % cols) * SQ3 * r + (row % 2 ? (SQ3 * r) / 2 : 0);
+                const cy = y0 + row * 1.5 * r;
+                const pts = hexPoints(cx, cy, r - 2);
+                const lag = tipBlock - n.lastBlock;
+                const line2 =
+                  n.status === 'offline'
+                    ? (n.err ?? 'no answer')
+                    : n.status === 'behind'
+                      ? `-${lag.toLocaleString('en-US')}`
+                      : n.rtt
+                        ? `${Math.round(n.rtt)} ms`
+                        : '';
+                return (
+                  <g
+                    key={n.id}
+                    className={`hex hex--${n.status} hex--${n.type}`}
+                    onPointerEnter={() => setHover({ id: n.id, x: cx, y: cy })}
+                  >
+                    <polygon points={pts} className="hex-cell" />
+                    {wave?.delays[n.id] !== undefined && (
+                      <polygon
+                        key={wave.round}
+                        points={pts}
+                        className="hex-flash"
+                        style={{ animationDelay: `${Math.round(plan.at(wave.delays[n.id]!))}ms` }}
+                      />
+                    )}
+                    {r >= 17 && (
+                      <text
+                        x={cx}
+                        y={cy - (r >= 24 ? 2 : -3)}
+                        className="hex-label"
+                        style={{ fontSize: Math.min(13, r * 0.42) }}
+                      >
+                        {n.label}
+                      </text>
+                    )}
+                    {r >= 24 && (
+                      <text
+                        x={cx}
+                        y={cy + r * 0.42}
+                        className="hex-sub"
+                        style={{ fontSize: Math.min(10, r * 0.32) }}
+                      >
+                        {line2}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+          {hovered && hover && (
+            <div
+              className="hex-detail"
+              style={{
+                top: Math.max(4, Math.min(size.h - 78, hover.y - 36)),
+                ...(hover.x > size.w / 2 ? { right: size.w - hover.x + r } : { left: hover.x + r }),
+              }}
+            >
+              <NodeCard node={hovered} tipBlock={tipBlock} />
+              <div className="hex-detail-more">
+                {hovered.net} ·{' '}
+                {hovered.prop
+                  ? `+${hovered.prop < 100 ? hovered.prop.toFixed(1) : Math.round(hovered.prop)} ms after first`
+                  : 'no delay data'}
+                {hovered.soft !== undefined && ` · soft +${hovered.soft.toFixed(1)}`}
+                {hovered.cert !== undefined && ` · cert +${hovered.cert.toFixed(1)}`} · first on{' '}
+                {hovered.firsts} blocks
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        <aside className="hex-sound" aria-label="The wall as sound">
+          <span className="hex-sound-title">SOUND</span>
+          <button
+            type="button"
+            className={`seg-item${sound === null ? ' seg-item--on' : ''}`}
+            aria-pressed={sound === null}
+            onClick={() => pick(null)}
+          >
+            OFF
+          </button>
+          {SOUNDS.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`seg-item${sound === name ? ' seg-item--on' : ''}`}
+              aria-pressed={sound === name}
+              onClick={() => pick(name)}
+            >
+              {SOUND_LABELS[name]}
+            </button>
+          ))}
+          <label className="hex-sound-title" htmlFor="hex-sound-volume">
+            VOLUME {Math.round(volume * 100)}%
+          </label>
+          <input
+            id="hex-sound-volume"
+            className="hex-volume"
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(volume * 100)}
+            onChange={(e) => {
+              const v = Number(e.target.value) / 100;
+              setVolume(v);
+              player.current?.setVolume(v);
+            }}
+          />
+        </aside>
       </div>
     </div>
   );

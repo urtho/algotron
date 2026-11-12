@@ -120,7 +120,7 @@ delay, so propagation is measured in milliseconds instead of polled.
   relay's median vote delivery. Without avmonitor only the proposal curve shows. The **by relay / by
   address** switch redraws it with one step per voting account (for the proposal, per proposer), as if each
   account were a node: when its vote first reached any relay.
-- **Sound** (switch on the health monitor, off by default): the wall as droplets, kalimba, a glass
+- **Sound** (switch to the right of the hexes, off by default, with a volume slider): the wall as droplets, kalimba, a glass
   arpeggio, techno or an orchestra by continent, synthesised in the browser from the same arrivals the
   hexes flash. Droplets, kalimba and the orchestra sound with the flashes; the arpeggio and techno keep a
   steady bar of one block time and pick up the newest round at each bar line.
