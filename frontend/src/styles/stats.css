@@ -85,6 +85,24 @@
   gap: 16px;
   padding: 0 14px;
 }
+.topbar-nav {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+.topbar-nav a {
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border2);
+}
+.topbar-nav a:hover,
+.topbar-nav a:focus-visible {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  outline: none;
+}
 .brand-title {
   font-size: 18px;
   color: var(--cyan);
@@ -544,6 +562,18 @@
 .hex--offline .hex-sub,
 .hex--behind .hex-sub {
   fill: var(--ink);
+}
+/* the wall as sound: a switch and, while it plays, a volume */
+.hex-sound {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hex-volume {
+  width: 70px;
+  height: 12px;
+  accent-color: var(--cyan);
 }
 .hex-key {
   width: 9px;

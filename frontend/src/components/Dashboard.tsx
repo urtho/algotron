@@ -69,6 +69,14 @@ export function Dashboard({ state }: { state: AppState }) {
         <span className="brand-subtitle">
           {config.networkLabel} · v{config.version}
         </span>
+        <nav className="topbar-nav" aria-label="Related sites">
+          <a href="https://algo.green" target="_blank" rel="noreferrer">
+            ALGO.GREEN
+          </a>
+          <a href="https://explore.algo.green" target="_blank" rel="noreferrer">
+            EXPLORE.ALGO.GREEN · SPACE THEME
+          </a>
+        </nav>
         <span className="topbar-spacer" />
         <RoundClock tipAt={state.tipAt} blockTime={summary.blockTime} />
         <span className="topbar-tip">
@@ -149,7 +157,13 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-stack">
-            <HexWall nodes={nodes} tipBlock={tip} wave={state.wave} plan={plan} />
+            <HexWall
+              nodes={nodes}
+              tipBlock={tip}
+              wave={state.wave}
+              plan={plan}
+              blockTime={summary.blockTime}
+            />
           </div>
 
           <div className="dash-bottom">

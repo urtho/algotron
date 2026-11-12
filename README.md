@@ -120,6 +120,10 @@ delay, so propagation is measured in milliseconds instead of polled.
   relay's median vote delivery. Without avmonitor only the proposal curve shows. The **by relay / by
   address** switch redraws it with one step per voting account (for the proposal, per proposer), as if each
   account were a node: when its vote first reached any relay.
+- **Sound** (switch on the health monitor, off by default): the wall as droplets, kalimba, a glass
+  arpeggio, techno or an orchestra by continent, synthesised in the browser from the same arrivals the
+  hexes flash. Droplets, kalimba and the orchestra sound with the flashes; the arpeggio and techno keep a
+  steady bar of one block time and pick up the newest round at each bar line.
 - **Vote boxes** (right column, bottom): for proposals, soft votes and cert votes, one box per round over the last 45
   rounds (whisker 5–95%, box 25–75%, tick at the median) of when the votes first reached any relay, and a
   strip counting them. A switch sets the zero: the round's first vote, or the first vote of that kind.

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeState, Wave } from '../../../shared/types.ts';
+import { SOUND_LABELS, SOUNDS, type SoundName, SoundPlayer, soundRound } from '../sound.ts';
 import type { WavePlan } from '../stats.ts';
 import { NodeCard } from './NodeCard.tsx';
 
@@ -37,11 +38,29 @@ const hexPoints = (cx: number, cy: number, r: number) =>
  * troubled ones sit at the end. With every new block each hex flashes after
  * its usual propagation delay, so the wall ripples in the order blocks spread.
  */
-export function HexWall(props: { nodes: NodeState[]; tipBlock: number; wave?: Wave; plan: WavePlan }) {
+export function HexWall(props: {
+  nodes: NodeState[];
+  tipBlock: number;
+  wave?: Wave;
+  plan: WavePlan;
+  /** Mean seconds per block: one bar of the rhythmic sounds */
+  blockTime: number;
+}) {
   const { nodes, tipBlock, wave, plan } = props;
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
+  // the wall as sound: off until someone picks one (a page may only make sound after a click)
+  const player = useRef<SoundPlayer | null>(null);
+  const [sound, setSound] = useState<SoundName | null>(null);
+  const [volume, setVolume] = useState(0.7);
+  const pick = (name: SoundName | null) => {
+    player.current ??= new SoundPlayer();
+    if (name) player.current.start(name);
+    else player.current.stop();
+    setSound(name);
+  };
+  useEffect(() => () => player.current?.stop(), []);
 
   useEffect(() => {
     const el = wrap.current;
@@ -78,6 +97,16 @@ export function HexWall(props: { nodes: NodeState[]; tipBlock: number; wave?: Wa
       TROUBLE[a.status] - TROUBLE[b.status] || rank.current.order.get(a.id)! - rank.current.order.get(b.id)!,
   );
 
+  // each finished round goes to the player at the moment its flashes start
+  const latest = useRef({ nodes, plan, order: rank.current.order, blockTime: props.blockTime });
+  latest.current = { nodes, plan, order: rank.current.order, blockTime: props.blockTime };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fires once per round
+  useEffect(() => {
+    if (!wave || !player.current?.playing || document.hidden) return;
+    const l = latest.current;
+    player.current.feed(soundRound(wave, l.plan, l.nodes, l.order), l.blockTime);
+  }, [wave?.round]);
+
   const pad = 10;
   const { r, cols } = layout(sorted.length, size.w - pad * 2, size.h - pad * 2);
   const rows = Math.ceil(sorted.length / cols);
@@ -105,6 +134,45 @@ export function HexWall(props: { nodes: NodeState[]; tipBlock: number; wave?: Wa
             <span className="hex-key hex-key--archiver" />
             {nodes.length - relays} archivers
           </span>
+        </span>
+        <span className="hex-sound">
+          <span className="seg">
+            <button
+              type="button"
+              className={`seg-item${sound === null ? ' seg-item--on' : ''}`}
+              aria-pressed={sound === null}
+              onClick={() => pick(null)}
+            >
+              SOUND OFF
+            </button>
+            {SOUNDS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={`seg-item${sound === name ? ' seg-item--on' : ''}`}
+                aria-pressed={sound === name}
+                onClick={() => pick(name)}
+              >
+                {SOUND_LABELS[name]}
+              </button>
+            ))}
+          </span>
+          {sound && (
+            <input
+              id="hex-sound-volume"
+              className="hex-volume"
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(volume * 100)}
+              aria-label="Sound volume"
+              onChange={(e) => {
+                const v = Number(e.target.value) / 100;
+                setVolume(v);
+                player.current?.setVolume(v);
+              }}
+            />
+          )}
         </span>
       </header>
       <div className="hexwall-body" ref={wrap} onPointerLeave={() => setHover(null)}>
