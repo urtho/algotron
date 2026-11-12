@@ -73,7 +73,7 @@ export function Dashboard({ state }: { state: AppState }) {
           <a href="https://algo.green" target="_blank" rel="noreferrer">
             ALGO.GREEN
           </a>
-          <a href="https://explore.algo.green" target="_blank" rel="noreferrer">
+          <a href="https://explore.algo.green/?theme=space" target="_blank" rel="noreferrer">
             EXPLORE.ALGO.GREEN · SPACE THEME
           </a>
         </nav>

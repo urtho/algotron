@@ -101,7 +101,7 @@ export function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number
   };
 }
 
-interface Scene {
+export interface Scene {
   cur: WaveCurves;
   sheaf: WaveCurves[];
   scale: CurveScale;
@@ -121,6 +121,8 @@ function curves(
   c: WaveCurves,
   settle: number,
   tau: number,
+  /** Carry the curve on level after its last arrival: to the drawing head, then to the end of its axis */
+  run = false,
 ) {
   const map = mapper(p, sc.scale, c, settle);
   CURVE_KINDS.forEach((kind, i) => {
@@ -135,10 +137,15 @@ function curves(
     ctx.strokeStyle = sc.colors[i]!;
     ctx.beginPath();
     ctx.moveTo(map.x(kind, vals[0]!), p.sy(0));
-    for (let k = 0; k < n && vals[k]! - map.zero[kind] <= tau; k++) {
+    let k = 0;
+    for (; k < n && vals[k]! - map.zero[kind] <= tau; k++) {
       const x = map.x(kind, vals[k]!);
       if (n < STEP_BELOW) ctx.lineTo(x, p.sy(k / n));
       ctx.lineTo(x, p.sy((k + 1) / n));
+    }
+    if (run && k > 0) {
+      const head = Number.isFinite(tau) ? map.x(kind, map.zero[kind] + tau) : right;
+      ctx.lineTo(Math.max(map.x(kind, vals[k - 1]!), Math.min(right, head)), p.sy(k / n));
     }
     ctx.stroke();
     ctx.restore();
@@ -168,7 +175,7 @@ function tick(
   ctx.globalAlpha = 1;
 }
 
-function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
+export function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
   const p: Plot = { x0: PAD.l, x1: w - PAD.r, y0: PAD.t, y1: h - PAD.b, sy: () => 0 };
   p.sy = (share) => p.y1 - share * (p.y1 - p.y0);
   const plotW = p.x1 - p.x0;
@@ -252,7 +259,7 @@ function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
   ctx.globalAlpha = 1;
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
-  curves(ctx, p, sc, sc.cur, settle, sc.tau);
+  curves(ctx, p, sc, sc.cur, settle, sc.tau, true);
 
   // where an equal-weight network would have enough soft and cert votes
   const map = mapper(p, scale, sc.cur, settle);
