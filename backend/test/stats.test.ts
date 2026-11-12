@@ -1,4 +1,5 @@
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
+import { mapper, type Plot } from '../../frontend/src/components/VoteCurves.tsx';
 import {
   boxSlots,
   curveScale,
@@ -124,4 +125,32 @@ test('boxSlots takes the newest rounds with vote timing, on either zero', () => 
     { round: 102, votes: 310, q: [10, 50, 100, 200, 400] },
   ]);
   expect(boxSlots(blocks, 'proposal', 'clock')).toEqual([]);
+});
+
+describe('arrival curve fences', () => {
+  const plot: Plot = { x0: 38, x1: 1238, y0: 30, y1: 200, sy: () => 0 };
+  const scale = { split: true, zoom: 1200, round: 3500 };
+  // a proposal with a late tail: two relays far beyond the third the proposal is drawn on
+  const round = { round: 1, block: [0, 20, 60, 520, 608], soft: [2600, 2700], cert: [2750, 2850] };
+  const brk = plot.x0 + (plot.x1 - plot.x0) / 3;
+
+  test('the proposal never shows past the break while there is one', () => {
+    for (let settle = 0; settle < 1; settle += 0.01) {
+      const map = mapper(plot, scale, round, settle);
+      const [left, right] = map.fence('block');
+      expect(left).toBe(plot.x0);
+      expect(right).toBeLessThan(brk);
+    }
+  });
+
+  test('settled, the whole proposal is inside the plot', () => {
+    const map = mapper(plot, scale, round, 1);
+    expect(map.fence('block')).toEqual([plot.x0, plot.x1]);
+    expect(map.x('block', 608)).toBeLessThan(brk);
+  });
+
+  test('without votes there is one axis and no break', () => {
+    const map = mapper(plot, { split: false, zoom: 700, round: 700 }, { ...round, soft: [], cert: [] }, 0);
+    expect(map.fence('block')).toEqual([plot.x0, plot.x1]);
+  });
 });

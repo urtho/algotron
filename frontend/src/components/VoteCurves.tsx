@@ -56,7 +56,7 @@ function savedMode(): CurveMode {
 
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-interface Plot {
+export interface Plot {
   x0: number;
   x1: number;
   y0: number;
@@ -74,7 +74,7 @@ const zeros = (c: WaveCurves): Record<CurveKind, number> => {
  * x of a moment for one round. Zoomed (settle 0) the proposal counts from the left edge and the votes from
  * a third of the width, both at the zoom scale; settled (1) everything sits on the round's clock.
  */
-function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number) {
+export function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number) {
   const w = p.x1 - p.x0;
   const zero = zeros(c);
   const m = scale.split ? settle : 1;
@@ -90,14 +90,13 @@ function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number) {
     zero,
     x,
     /**
-     * While zoomed a curve stays inside its own axis. The proposal's late tail, cut at the break, comes
-     * back as the axes merge: the cut is a moment on the proposal's own clock that moves out to the end
-     * of the round, so the tail never shows on the votes' axis.
+     * A curve stays inside its own axis. The proposal's late tail is cut at the break for as long as there
+     * is a break: a point of the tail shows once it has slid left of it, on its way to its place on the
+     * round's clock, and never on the votes' axis. Settled, the plot's right edge is the only cut.
      */
     fence: (kind: CurveKind): [number, number] => {
       if (kind !== 'block') return [p.x0 + (w / 3) * (1 - m), p.x1];
-      const edge = scale.zoom / 3 - (FENCE / w) * scale.zoom;
-      return [p.x0, x('block', zero.block + edge + (scale.round - edge) * m * m)];
+      return [p.x0, m < 1 ? p.x0 + w / 3 - FENCE : p.x1];
     },
   };
 }
