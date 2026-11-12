@@ -38,30 +38,78 @@ export const CURVE_LABELS: Record<CurveKind, string> = {
 /** What one step of a curve is: a relay, or a voting account taken as if it were a node */
 export type CurveMode = 'relay' | 'address';
 
-/** One round's arrival delays per kind, ascending, ms after that kind's first arrival. A kind without data is empty. */
+/**
+ * One round's arrivals per kind, ascending, on the round's own clock: ms after the round's first vote of
+ * any kind. A kind without data is empty. Polled rounds have no clock, so their block counts from zero.
+ */
 export type WaveCurves = { round: number } & Record<CurveKind, number[]>;
 
 export function waveCurves(wave: Wave, mode: CurveMode = 'relay'): WaveCurves {
+  const at = (list: number[] | undefined, zero: number | undefined) =>
+    (list ?? []).map((ms) => ms + (zero ?? 0)).sort((a, b) => a - b);
   if (mode === 'address') {
-    return { round: wave.round, block: [], soft: [], cert: [], ...wave.accounts };
+    const z = wave.accountsZero;
+    return {
+      round: wave.round,
+      block: at(wave.accounts?.block, z?.block),
+      soft: at(wave.accounts?.soft, z?.soft),
+      cert: at(wave.accounts?.cert, z?.cert),
+    };
   }
-  const sorted = (by: Record<string, number> | undefined) => Object.values(by ?? {}).sort((a, b) => a - b);
-  return { round: wave.round, block: sorted(wave.delays), soft: sorted(wave.soft), cert: sorted(wave.cert) };
+  const of = (by: Record<string, number> | undefined) => (by ? Object.values(by) : undefined);
+  const z = wave.zero;
+  return {
+    round: wave.round,
+    block: at(of(wave.delays), z?.block),
+    soft: at(of(wave.soft), z?.soft),
+    cert: at(of(wave.cert), z?.cert),
+  };
 }
 
 /**
- * Right edge of the arrival curves, ms. Every view replays at the globe's slowdown; by relay the window is
- * the globe's too. Votes leave their accounts over a longer stretch than they take to cross the relays, so
- * by address the window grows until the slowest kind's 95th-percentile account fits, and that replay runs longer.
+ * Share of a kind's votes that carries its step of the round, taken from the consensus parameters
+ * (soft: 2267 of a committee of 2990, cert: 1112 of 1500). The curves count relays or accounts, not
+ * stake, so the line drawn there is where an equal-weight network would cross it.
  */
-export function curveWindow(wave: Wave | undefined, mode: CurveMode, plan: WavePlan): number {
-  const base = plan.max * 1.3;
-  if (mode === 'relay' || !wave?.accounts) return base;
-  const p95 = CURVE_KINDS.map((k) => {
-    const a = wave.accounts![k];
-    return a[Math.floor(a.length * 0.95)] ?? 0;
-  });
-  return Math.max(base, Math.max(...p95) * 1.3);
+export const QUORUM: Partial<Record<CurveKind, number>> = { soft: 2267 / 2990, cert: 1112 / 1500 };
+
+/** When a curve reaches a share of its nodes, ms on the curve's own clock; undefined for an empty curve. */
+export function reachedAt(sorted: number[], share: number): number | undefined {
+  return sorted.length
+    ? sorted[Math.min(sorted.length, Math.max(1, Math.ceil(sorted.length * share))) - 1]
+    : undefined;
+}
+
+export interface CurveScale {
+  /** The votes are there: the proposal is drawn on the first third, soft and cert on the rest */
+  split: boolean;
+  /** ms across the full width while a round is drawn zoomed (both zoomed axes have this scale) */
+  zoom: number;
+  /** ms across the full width on the round's clock */
+  round: number;
+}
+
+const p95 = (sorted: number[]) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0;
+const ceilTo = (v: number, step: number) => Math.max(step, Math.ceil(v / step) * step);
+
+/**
+ * Axes that fit a set of rounds (the one on screen and the ones behind it), so they hold still from round
+ * to round. Zoomed, the proposal's 95th percentile fits a third of the width and the later of the soft and
+ * cert 95th percentiles, counted from the first soft vote, fits the other two thirds.
+ */
+export function curveScale(rounds: WaveCurves[]): CurveScale {
+  const voted = rounds.filter((r) => r.soft.length > 1);
+  const proposal = Math.max(10, ...rounds.map((r) => p95(r.block) - (r.block[0] ?? 0)));
+  if (voted.length === 0) {
+    const span = ceilTo(Math.max(...rounds.map((r) => p95(r.block)), 10) * 1.15, 10);
+    return { split: false, zoom: span, round: span };
+  }
+  const votes = Math.max(...voted.map((r) => Math.max(p95(r.soft), p95(r.cert)) - r.soft[0]!));
+  return {
+    split: true,
+    zoom: ceilTo(Math.max(3 * proposal, 1.5 * votes) * 1.05, 150),
+    round: ceilTo(Math.max(...voted.map((r) => Math.max(p95(r.soft), p95(r.cert)))) * 1.03, 250),
+  };
 }
 
 /** The per-round vote box charts */

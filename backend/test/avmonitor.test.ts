@@ -109,6 +109,9 @@ describe('summarizeRound', () => {
     expect(t.certMs).toBe(950);
     // one entry per voting account, counted from the first vote of its kind
     expect(t.accounts).toEqual({ proposal: [0, 3], soft: [0, 3], cert: [0] });
+    // where the relay figures and the account lists count from, on the round's own clock
+    expect(t.zero).toEqual({ proposal: 3, soft: 216, cert: 905 });
+    expect(t.accountsZero).toEqual({ proposal: 0, soft: 212, cert: 900 });
     // count, earliest and five percentiles, on the round's own clock
     expect(t.boxes).toEqual({
       proposal: [2, 0, 0, 0, 3, 3, 3],
@@ -125,6 +128,7 @@ describe('summarizeRound', () => {
     };
     const t = summarizeRound(summary, dict);
     expect(t.relays.map((r) => r.proposal)).toEqual([0, 6]);
+    expect(t.zero.proposal).toBe(0);
   });
 
   test('relays missing from the dictionary are left out', () => {

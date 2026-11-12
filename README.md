@@ -24,9 +24,6 @@ Version 2 adds realtime chain statistics:
   are not known
 - **Dot-matrix land, bloom and an atmosphere rim** on the globe. Bloom switches itself off on a display that
   cannot hold about 25 frames per second (`?fx=1` forces it on, `?fx=0` off)
-- **Wall mode** for an unattended screen: the globe turns to face the relay that showed each block first and
-  the panels take the stage in turn. Starts from the top-bar button, with `#wall` in the address, or after
-  5 minutes without input (`?idle=0` disables that, `?idle=60` sets seconds); pointer movement or a key ends it
 - **Honeycomb wall**: one hex per node, fastest reply first (re-ranked once a minute so hexes stay put),
   flashing in the same replay as the globe; hover for detail
 - **Proposer ring, moments**: the current proposer on a ring in the globe's corner, and a
@@ -114,13 +111,16 @@ delay, so propagation is measured in milliseconds instead of polled.
 - **Block wave**: per relay, the delay of the winning proposal vote after its first arrival at any relay.
   It feeds the wavefront, the honeycomb flash and the propagation chart. Gossip delays are tens of
   milliseconds, so the wave is replayed slowed down (the key says by how much).
-- **Arrival curves** (under the globe): the share of timed relays that have the winning proposal, the soft
-  vote and the cert vote, each counted from its own first relay, replayed on the globe's clock over the last
-  ten rounds. Soft and cert are each relay's median vote delivery. Without avmonitor only the proposal curve
-  shows. The **by relay / by address** switch redraws it with one step per voting account (for the proposal,
-  per proposer), as if each account were a node: when its vote first reached any relay, counted from the
-  first vote of that kind. Both views replay at the globe's slowdown; by address the window is wider.
-- **Vote boxes** (bottom row): for proposals, soft votes and cert votes, one box per round over the last 45
+- **Arrival curves** (full-width band at the bottom): the share of timed relays that have the winning
+  proposal, the soft vote and the cert vote, on the round's own clock (ms after the round's first vote). A
+  round first draws zoomed on two axes of one scale, the proposal from the left edge and soft and cert from a
+  third of the width, then settles onto the whole-round axis among the ten rounds before it. Dashed lines
+  mark where the soft and cert curves cross their consensus threshold share (2267/2990 and 1112/1500), by
+  count, not stake. It runs at its own pace so every round fits before the next. Soft and cert are each
+  relay's median vote delivery. Without avmonitor only the proposal curve shows. The **by relay / by
+  address** switch redraws it with one step per voting account (for the proposal, per proposer), as if each
+  account were a node: when its vote first reached any relay.
+- **Vote boxes** (right column, bottom): for proposals, soft votes and cert votes, one box per round over the last 45
   rounds (whisker 5–95%, box 25–75%, tick at the median) of when the votes first reached any relay, and a
   strip counting them. A switch sets the zero: the round's first vote, or the first vote of that kind.
 - **Soft and cert votes**: per relay, the median delivery relative to the fastest relay (shown on hover), and

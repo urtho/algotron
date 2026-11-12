@@ -110,6 +110,12 @@ export interface Wave {
    * that kind reaching any relay to this account's vote reaching any relay, ascending
    */
   accounts?: { block: number[]; soft: number[]; cert: number[] };
+  /**
+   * avmonitor only: where the zero of each list above sits on the round's own clock, ms after the round's
+   * first vote of any kind. `zero` goes with `delays`, `soft` and `cert`; `accountsZero` with `accounts`.
+   */
+  zero?: { block: number; soft: number; cert: number };
+  accountsZero?: { block: number; soft: number; cert: number };
   source: 'poll' | 'avmonitor';
 }
 

@@ -12,8 +12,7 @@ import {
   txParts,
   wavePlan,
 } from '../stats.ts';
-import { useWallMode } from '../wall.ts';
-import { ChartPanel, LineChart, StackChart } from './Chart.tsx';
+import { ChartPanel, FlowChart, SplitChart } from './Chart.tsx';
 import { Globe } from './Globe.tsx';
 import { HexWall } from './HexWall.tsx';
 import { Kpis } from './Kpis.tsx';
@@ -26,10 +25,12 @@ import { VoteCurves } from './VoteCurves.tsx';
 /** Chart series colors, validated for the dark surface (see styles/stats.css) */
 const C = {
   line: '#149fbd',
-  line2: '#e0559f',
+  median: '#b9801c',
+  p90: '#e0559f',
   kinds: ['#149fbd', '#b9801c', '#8a6cf0', '#e0559f', '#3d7fd9'],
 };
-const BARS = 64;
+/** Rounds on the two combined charts, about 5.5 minutes */
+const RECENT = 120;
 const WINDOW = 10;
 
 export function Dashboard({ state }: { state: AppState }) {
@@ -41,20 +42,28 @@ export function Dashboard({ state }: { state: AppState }) {
   const proposers = useMemo(() => topProposers(blocks, 36), [blocks]);
 
   // the first WINDOW points have a shorter window behind them, so they are not drawn
-  const rounds = useMemo(() => blocks.slice(WINDOW).map((b) => b.round), [blocks]);
   const tps = useMemo(() => tpsSeries(blocks, WINDOW).slice(WINDOW), [blocks]);
-  const blockTime = useMemo(() => blockTimeSeries(blocks, WINDOW).slice(WINDOW), [blocks]);
-  const bars = useMemo(() => blocks.slice(-BARS), [blocks]);
-  const timed = useMemo(() => blocks.filter((b) => b.p50 !== undefined).slice(-120), [blocks]);
+  // both combined charts show the same rounds
+  const view = useMemo(() => {
+    const from = Math.max(WINDOW, blocks.length - RECENT);
+    const shown = blocks.slice(from);
+    return {
+      rounds: shown.map((b) => b.round),
+      tps: tpsSeries(blocks, WINDOW).slice(from),
+      blockTime: blockTimeSeries(blocks, WINDOW).slice(from),
+      parts: shown.map(txParts),
+      p50: shown.map((b) => b.p50),
+      p90: shown.map((b) => b.p90),
+    };
+  }, [blocks]);
 
   const newest = blocks[blocks.length - 1];
-  const wall = useWallMode();
   const av = config.propSource === 'avmonitor';
   const plan = useMemo(() => wavePlan(state.wave), [state.wave]);
   const ago = (n: number) => `−${fmt.int((n * (summary.blockTime || 2.8)) / 60)} min`;
 
   return (
-    <div className={`dash${wall.on ? ` dash--wall dash--stage-${wall.stage}` : ''}`}>
+    <div className="dash">
       <header className="topbar">
         <span className="brand-title">ALGOTRON</span>
         <span className="brand-subtitle">
@@ -68,13 +77,6 @@ export function Dashboard({ state }: { state: AppState }) {
             #{tip.toLocaleString('en-US')}
           </a>
         </span>
-        <button
-          type="button"
-          className={`wall-toggle${wall.on ? ' wall-toggle--on' : ''}`}
-          onClick={wall.toggle}
-        >
-          {wall.on ? `WALL MODE · ${wall.stage.toUpperCase()} · MOVE POINTER TO EXIT` : 'WALL MODE'}
-        </button>
         <span className={`topbar-link topbar-link--${state.connected ? 'up' : 'down'}`}>
           {state.connected ? '● LIVE' : '○ RECONNECTING'}
         </span>
@@ -85,7 +87,14 @@ export function Dashboard({ state }: { state: AppState }) {
       <div className="dash-main">
         <div className="dash-left">
           <div className="globe-cell">
-            <Globe nodes={nodes} wave={state.wave} follow={wall.on} />
+            <Globe nodes={nodes} wave={state.wave} />
+            <div className="globe-note">
+              Approximate locations of relays, not validators.
+              <br />
+              {av
+                ? 'Burst starts at the first relay to see the winning proposal, not at the proposer.'
+                : 'Burst starts at the first node to show the block, not at the proposer.'}
+            </div>
             <Moments
               tps={tps}
               logs={state.logs}
@@ -93,62 +102,48 @@ export function Dashboard({ state }: { state: AppState }) {
               blockTime={summary.blockTime}
               connected={state.connected}
             />
-            <ProposerRing rows={proposers} newest={newest} blocks={blocks.length} color={C.line} />
+            <ProposerRing rows={proposers} newest={newest} color={C.line} />
           </div>
-          <VoteCurves wave={state.wave} colors={C.kinds} />
         </div>
 
         <div className="dash-right">
           <div className="charts">
-            <ChartPanel title="THROUGHPUT" note="TPS · 10-block window" value={fmt.num(summary.tps, 1)}>
-              <LineChart
-                rounds={rounds}
-                series={[{ name: 'TPS', color: C.line, values: tps }]}
-                unit={(v) => fmt.num(v, v < 10 ? 1 : 0)}
-                left={ago(rounds.length)}
-                fill
-              />
-            </ChartPanel>
             <ChartPanel
-              title="TRANSACTIONS PER BLOCK"
+              title="THROUGHPUT"
               legend={TX_KINDS.map((k, i) => ({ name: TX_LABELS[k], color: C.kinds[i]! }))}
+              value={`${fmt.num(summary.tps, 1)} TPS`}
             >
-              <StackChart
-                rounds={bars.map((b) => b.round)}
-                parts={bars.map(txParts)}
+              <FlowChart
+                rounds={view.rounds}
+                tps={view.tps}
+                parts={view.parts}
                 names={TX_KINDS.map((k) => TX_LABELS[k])}
                 colors={C.kinds}
-                left={ago(bars.length)}
+                lineColor={C.line}
+                left={ago(view.rounds.length)}
               />
             </ChartPanel>
             <ChartPanel
-              title="BLOCK TIME"
-              note="seconds · 10-block mean"
+              title="BLOCK TIME · PROPAGATION"
+              legend={[
+                { name: 'block time', color: C.line },
+                { name: 'median node', color: C.median },
+                { name: '90th percentile', color: C.p90 },
+              ]}
               value={`${fmt.num(summary.blockTime, 2)} s`}
             >
-              <LineChart
-                rounds={rounds}
-                series={[{ name: 'block time', color: C.line, values: blockTime }]}
-                unit={(v) => `${fmt.num(v, 1)}s`}
-                left={ago(rounds.length)}
-              />
-            </ChartPanel>
-            <ChartPanel
-              title="BLOCK PROPAGATION"
-              note={av ? 'winning proposal vote · ms after first relay' : 'ms after first sighting'}
-              legend={[
-                { name: 'median node', color: C.line },
-                { name: '90th percentile', color: C.line2 },
-              ]}
-            >
-              <LineChart
-                rounds={timed.map((b) => b.round)}
-                series={[
-                  { name: 'median node', color: C.line, values: timed.map((b) => b.p50) },
-                  { name: '90th percentile', color: C.line2, values: timed.map((b) => b.p90) },
+              <SplitChart
+                rounds={view.rounds}
+                top={{ name: 'block time', color: C.line, values: view.blockTime }}
+                topUnit={(v) => `${fmt.num(v, 2)}s`}
+                topLabel="BLOCK TIME · 10-BLOCK MEAN"
+                bottom={[
+                  { name: 'median node', color: C.median, values: view.p50 },
+                  { name: '90th percentile', color: C.p90, values: view.p90 },
                 ]}
-                unit={(v) => fmt.int(v)}
-                left={ago(timed.length)}
+                bottomUnit={(v) => fmt.int(v)}
+                bottomLabel={av ? 'PROPOSAL · MS AFTER FIRST RELAY' : 'BLOCK · MS AFTER FIRST SIGHTING'}
+                left={ago(view.rounds.length)}
               />
             </ChartPanel>
           </div>
@@ -161,6 +156,10 @@ export function Dashboard({ state }: { state: AppState }) {
             <VoteBoxes blocks={blocks} colors={C.kinds} />
           </div>
         </div>
+      </div>
+
+      <div className="dash-band">
+        <VoteCurves wave={state.wave} colors={C.kinds} />
       </div>
     </div>
   );

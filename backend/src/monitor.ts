@@ -426,15 +426,31 @@ export class Monitor {
         );
         if (rows.length < 2) return undefined;
         const min = Math.min(...rows.map(([, ms]) => ms));
-        return Object.fromEntries(rows.map(([id, ms]) => [id, Math.round((ms - min) * 10) / 10]));
+        return {
+          min,
+          by: Object.fromEntries(rows.map(([id, ms]) => [id, Math.round((ms - min) * 10) / 10])),
+        };
       };
+      const soft = votes('soft');
+      const cert = votes('cert');
       this.sendWave({
         round: t.round,
         origin: origin.id,
         delays: byNode,
-        soft: votes('soft'),
-        cert: votes('cert'),
+        soft: soft?.by,
+        cert: cert?.by,
         accounts: { block: t.accounts.proposal, soft: t.accounts.soft, cert: t.accounts.cert },
+        // each list was re-zeroed to its own fastest node: this is what that zero is on the round's clock
+        zero: {
+          block: t.zero.proposal + t0,
+          soft: t.zero.soft + (soft?.min ?? 0),
+          cert: t.zero.cert + (cert?.min ?? 0),
+        },
+        accountsZero: {
+          block: t.accountsZero.proposal,
+          soft: t.accountsZero.soft,
+          cert: t.accountsZero.cert,
+        },
         source: 'avmonitor',
       });
     }

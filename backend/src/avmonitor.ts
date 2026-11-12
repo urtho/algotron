@@ -191,6 +191,10 @@ export interface AvRoundTiming {
   accounts: { proposal: number[]; soft: number[]; cert: number[] };
   /** Per kind: vote count and when the votes first reached any relay, ms from the round's first vote */
   boxes: { proposal?: VoteBox; soft?: VoteBox; cert?: VoteBox };
+  /** ms into the round at which each relay figure (`proposal`, `soft`, `cert` of `relays`) counts from zero */
+  zero: { proposal: number; soft: number; cert: number };
+  /** ms into the round of the first entry of each `accounts` list */
+  accountsZero: { proposal: number; soft: number; cert: number };
 }
 
 const median = (xs: number[]) => {
@@ -217,7 +221,9 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
   const prop = section(KIND.proposal);
   const row = prop && r.winner !== NONE ? prop.voters.indexOf(r.winner) : -1;
   const proposal = new Map<number, number>();
+  let proposalZero = 0;
   if (prop?.matrix && row >= 0) {
+    proposalZero = prop.first[row]!;
     for (const { i } of cols) {
       const d = prop.matrix[row * n + i]!;
       if (d < 0xfffe) proposal.set(i, d);
@@ -225,6 +231,7 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
   } else if (prop) {
     const firsts = cols.map(({ i }) => prop.summary[i * 4 + 1]!).filter((d) => d !== NONE);
     const min = Math.min(...firsts);
+    if (firsts.length) proposalZero = min;
     for (const { i } of cols) {
       const d = prop.summary[i * 4 + 1]!;
       if (d !== NONE) proposal.set(i, d - min);
@@ -241,7 +248,7 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
       }
     }
     const min = Math.min(...abs.values());
-    return { abs, rel: new Map([...abs].map(([i, d]) => [i, d - min])) };
+    return { abs, min: abs.size ? min : 0, rel: new Map([...abs].map(([i, d]) => [i, d - min])) };
   };
   const soft = p50(KIND.soft);
   const cert = p50(KIND.cert);
@@ -274,6 +281,12 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
     certMs: median([...cert.abs.values()]),
     accounts: { proposal: accounts(KIND.proposal), soft: accounts(KIND.soft), cert: accounts(KIND.cert) },
     boxes: { proposal: box(KIND.proposal), soft: box(KIND.soft), cert: box(KIND.cert) },
+    zero: { proposal: proposalZero, soft: soft.min, cert: cert.min },
+    accountsZero: {
+      proposal: firsts(KIND.proposal)[0] ?? 0,
+      soft: firsts(KIND.soft)[0] ?? 0,
+      cert: firsts(KIND.cert)[0] ?? 0,
+    },
   };
 }
 

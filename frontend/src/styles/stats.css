@@ -15,23 +15,6 @@
   --panel: rgba(0, 204, 255, 0.03);
 }
 
-/* Panel shares, as numbers so wall mode can animate them */
-@property --left {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 36;
-}
-@property --charts {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 32;
-}
-@property --bottom {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 28;
-}
-
 .app-dash {
   height: 100%;
   transition: opacity 0.8s;
@@ -40,8 +23,12 @@
 /* ── Layout: top bar / KPI strip / globe + right column ─────────────────────── */
 .dash {
   display: grid;
-  grid-template-rows: 34px auto minmax(0, 1fr);
+  grid-template-rows: 34px auto minmax(0, 1fr) clamp(190px, 27vh, 330px);
   height: 100vh;
+  /* panel shares, % */
+  --left: 36;
+  --charts: 34;
+  --bottom: 32;
   gap: 2px;
   padding: 2px;
   background: var(--border);
@@ -229,7 +216,6 @@
 .charts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 2px;
   background: var(--border) !important;
 }
@@ -423,10 +409,14 @@
   }
 }
 
-/* ── Arrival curves (under the globe, on the globe's replay clock) ──────────── */
+/* ── Arrival curves: the full-width band under everything ───────────────────── */
+.dash-band {
+  display: flex;
+  min-height: 0;
+}
 .curves {
-  flex: 0 0 clamp(150px, 21vh, 230px);
-  border-top: 2px solid var(--border);
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -613,11 +603,17 @@
   aspect-ratio: 1;
   display: block;
 }
-.proposers-note {
-  font-size: 9px;
-  letter-spacing: 0.12em;
+/* what the globe does and does not show */
+.globe-note {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  max-width: 46%;
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
   color: var(--ink-muted);
-  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* ── Hero throughput ────────────────────────────────────────────────────────── */
@@ -699,66 +695,7 @@
   text-shadow: none;
 }
 
-/* ── Wall mode: one panel takes the stage at a time ─────────────────────────── */
-.dash {
-  --left: 36;
-  --charts: 32;
-  --bottom: 28;
-  transition:
-    --left 1.6s ease-in-out,
-    --charts 1.6s ease-in-out,
-    --bottom 1.6s ease-in-out;
-}
-.dash--wall {
-  cursor: none;
-}
-.dash--stage-globe {
-  --left: 58;
-  --charts: 30;
-  --bottom: 24;
-}
-.dash--stage-charts {
-  --left: 30;
-  --charts: 52;
-  --bottom: 20;
-}
-.dash--stage-relays {
-  --left: 30;
-  --charts: 20;
-  --bottom: 18;
-}
-.dash--stage-votes {
-  --left: 30;
-  --charts: 24;
-  --bottom: 44;
-}
-
-.wall-toggle {
-  font: inherit;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  color: var(--ink-muted);
-  background: transparent;
-  border: 1px solid var(--border2);
-  padding: 3px 9px;
-  cursor: pointer;
-}
-.wall-toggle:hover,
-.wall-toggle:focus-visible {
-  color: var(--cyan);
-  border-color: var(--cyan);
-  outline: none;
-}
-.wall-toggle--on {
-  color: var(--bg);
-  background: var(--cyan);
-  border-color: var(--cyan);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .dash {
-    transition: none;
-  }
   .tape-cell--new,
   .topbar-link--down {
     animation: none;

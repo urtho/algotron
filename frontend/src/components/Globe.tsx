@@ -14,8 +14,6 @@ interface Props {
   nodes: NodeState[];
   /** Newest finished round: where the block was first and when it reached every other node */
   wave?: Wave;
-  /** Wall mode: the globe turns to face the node that showed each block first */
-  follow?: boolean;
 }
 
 /**
@@ -73,11 +71,8 @@ const ARC_POINTS = 48;
 /** How long a node stays lit when the wavefront reaches it */
 const WAVE_HOLD_MS = 900;
 
-export function Globe({ nodes, wave, follow }: Props) {
-  const followRef = useRef(false);
-  followRef.current = !!follow;
+export function Globe({ nodes, wave }: Props) {
   /** Rotation that brings the newest block's first node to the front */
-  const aimRef = useRef<{ x: number; y: number } | null>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const dotsGroupRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -384,17 +379,7 @@ export function Globe({ nodes, wave, follow }: Props) {
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
-      const aim = aimRef.current;
-      if (isDragging) {
-        aimRef.current = null;
-      } else if (followRef.current && aim) {
-        // ease toward the first node of the newest block, the short way round
-        const TAU = Math.PI * 2;
-        const dy = ((((aim.y - globeGroup.rotation.y) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
-        const ease = 1 - Math.exp(-dt * 1.6);
-        globeGroup.rotation.y += dy * ease;
-        globeGroup.rotation.x += (aim.x - globeGroup.rotation.x) * ease;
-      } else {
+      if (!isDragging) {
         globeGroup.rotation.y += 0.04 * dt; // ~2.4°/s
       }
 
@@ -523,11 +508,6 @@ export function Globe({ nodes, wave, follow }: Props) {
     waveRef.current = { born: now, at, tone };
 
     const from = latLngToVec3(origin.lat, origin.lng, 1.006);
-    // rotation.y that puts the node on the camera's meridian, and a tilt toward its latitude
-    aimRef.current = {
-      y: Math.atan2(-from.x, from.z),
-      x: Math.max(-0.9, Math.min(0.9, (origin.lat * Math.PI) / 180)) * 0.85,
-    };
 
     const ring = (
       pos: THREE.Vector3,

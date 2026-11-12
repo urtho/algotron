@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import {
   boxSlots,
-  curveWindow,
+  curveScale,
+  reachedAt,
   shareAt,
   summarize,
   topProposers,
   tpsSeries,
   txParts,
   waveCurves,
-  wavePlan,
 } from '../../frontend/src/stats.ts';
 import type { BlockStat } from '../../shared/types.ts';
 
@@ -53,15 +53,47 @@ test('summarize and topProposers', () => {
   ]);
 });
 
-test('waveCurves sorts each kind and leaves a missing kind empty', () => {
-  const c = waveCurves({
+test('waveCurves puts each kind on the round clock and leaves a missing kind empty', () => {
+  const wave = {
     round: 7,
     origin: 'a',
     delays: { a: 0, b: 40, c: 12 },
     soft: { a: 3, b: 0 },
-    source: 'avmonitor',
+    zero: { block: 5, soft: 2500, cert: 0 },
+    accounts: { block: [0, 90], soft: [0, 100, 200, 400], cert: [0, 50] },
+    accountsZero: { block: 0, soft: 2400, cert: 2600 },
+    source: 'avmonitor' as const,
+  };
+  expect(waveCurves(wave)).toEqual({ round: 7, block: [5, 17, 45], soft: [2500, 2503], cert: [] });
+  expect(waveCurves(wave, 'address')).toEqual({
+    round: 7,
+    block: [0, 90],
+    soft: [2400, 2500, 2600, 2800],
+    cert: [2600, 2650],
   });
-  expect(c).toEqual({ round: 7, block: [0, 12, 40], soft: [0, 3], cert: [] });
+  // a polled round has no clock and no votes: its block counts from zero
+  const polled = { round: 8, origin: 'a', delays: { a: 0, b: 40 }, source: 'poll' as const };
+  expect(waveCurves(polled)).toEqual({ round: 8, block: [0, 40], soft: [], cert: [] });
+  expect(waveCurves(polled, 'address').block).toEqual([]);
+});
+
+test('curveScale fits the proposal in a third and the votes in two thirds', () => {
+  const round = { round: 1, block: [10, 60, 110], soft: [2500, 2600, 2900], cert: [2600, 2700, 3100] };
+  // proposal spans 100 ms, votes 600 ms from the first soft vote: 1.5 x 600 wins over 3 x 100
+  expect(curveScale([round])).toEqual({ split: true, zoom: 1050, round: 3250 });
+  // without votes there is one axis and nothing to settle onto
+  expect(curveScale([{ round: 2, block: [0, 40, 80], soft: [], cert: [] }])).toEqual({
+    split: false,
+    zoom: 100,
+    round: 100,
+  });
+});
+
+test('reachedAt finds when a curve crosses a share', () => {
+  expect(reachedAt([10, 20, 30, 40], 0.75)).toBe(30);
+  expect(reachedAt([10, 20, 30, 40], 0.76)).toBe(40);
+  expect(reachedAt([10], 0.5)).toBe(10);
+  expect(reachedAt([], 0.5)).toBeUndefined();
 });
 
 test('shareAt counts the nodes that have arrived by a moment', () => {
@@ -71,31 +103,6 @@ test('shareAt counts the nodes that have arrived by a moment', () => {
   expect(shareAt(sorted, 39.9)).toBe(0.5);
   expect(shareAt(sorted, 40)).toBe(1);
   expect(shareAt([], 10)).toBe(0);
-});
-
-test('by address the curves come from the accounts, at the globe speed in a wider window', () => {
-  const wave = {
-    round: 7,
-    origin: 'a',
-    delays: { a: 0, b: 40, c: 12 },
-    accounts: { block: [0, 90], soft: [0, 100, 200, 400], cert: [0, 50] },
-    source: 'avmonitor' as const,
-  };
-  expect(waveCurves(wave, 'address')).toEqual({
-    round: 7,
-    block: [0, 90],
-    soft: [0, 100, 200, 400],
-    cert: [0, 50],
-  });
-  const plan = wavePlan(wave);
-  expect(plan).toMatchObject({ max: 40, slow: 50 });
-  expect(curveWindow(wave, 'relay', plan)).toBe(52);
-  // the slowest kind's 95th-percentile account (400 ms) has to fit
-  expect(curveWindow(wave, 'address', plan)).toBe(520);
-  // without account data the address view has nothing and keeps the globe's window
-  const polled = { ...wave, accounts: undefined };
-  expect(waveCurves(polled, 'address').soft).toEqual([]);
-  expect(curveWindow(polled, 'address', plan)).toBe(52);
 });
 
 test('boxSlots takes the newest rounds with vote timing, on either zero', () => {

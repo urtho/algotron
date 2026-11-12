@@ -9,12 +9,7 @@ const TICKS = 36;
  * window). The proposer of the newest block is highlighted and pings. It sits
  * in the globe's top right corner.
  */
-export function ProposerRing(props: {
-  rows: ProposerRow[];
-  newest?: BlockStat;
-  blocks: number;
-  color: string;
-}) {
+export function ProposerRing(props: { rows: ProposerRow[]; newest?: BlockStat; color: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const data = useRef(props);
   data.current = props;
@@ -93,7 +88,6 @@ export function ProposerRing(props: {
   return (
     <div className="proposers">
       <canvas ref={canvas} className="proposer-ring" />
-      <span className="proposers-note">PROPOSERS · LAST {props.blocks} BLOCKS</span>
     </div>
   );
 }

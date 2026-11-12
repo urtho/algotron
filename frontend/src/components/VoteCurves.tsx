@@ -3,13 +3,16 @@ import type { Wave } from '../../../shared/types.ts';
 import {
   CURVE_KINDS,
   CURVE_LABELS,
+  type CurveKind,
   type CurveMode,
-  curveWindow,
+  type CurveScale,
+  curveScale,
   fmt,
+  QUORUM,
+  reachedAt,
   shareAt,
   type WaveCurves,
   waveCurves,
-  wavePlan,
 } from '../stats.ts';
 import { ChartPanel } from './Chart.tsx';
 
@@ -21,177 +24,21 @@ interface Props {
 }
 
 /** Ink and chrome for canvas drawing; kept in step with Chart.tsx and styles/app.css */
-const INK = { text: '#9fe8d2', muted: '#3f8573', grid: '#0a3040', surface: '#00060f', head: '#00ccff' };
+const INK = { text: '#9fe8d2', dim: '#62ab95', muted: '#3f8573', grid: '#0a3040', head: '#00ccff' };
 const FONT = "10px 'Share Tech Mono', monospace";
-const PAD = { l: 34, r: 14, t: 12, b: 18 };
-/** Earlier rounds kept as the faint sheaf behind the current one */
+const PAD = { l: 38, r: 14, t: 30, b: 20 };
+/** Earlier rounds kept as the faint history on the round's clock */
 const SHEAF = 10;
-const SHEAF_ALPHA = 0.17;
-
-interface Scale {
-  x0: number;
-  x1: number;
-  y0: number;
-  y1: number;
-  /** ms after the first node shown at the plot's right edge */
-  win: number;
-  sx: (ms: number) => number;
-  sy: (share: number) => number;
-}
-
-function scaleOf(w: number, h: number, win: number): Scale {
-  const x0 = PAD.l;
-  const x1 = w - PAD.r;
-  const y0 = PAD.t;
-  const y1 = h - PAD.b;
-  return {
-    x0,
-    x1,
-    y0,
-    y1,
-    win,
-    sx: (ms) => x0 + (ms / win) * (x1 - x0),
-    sy: (share) => y1 - share * (y1 - y0),
-  };
-}
-
-function tickStep(win: number, px: number): number {
-  const target = win / Math.max(2, Math.floor(px / 64));
-  return [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].find((s) => s >= target) ?? 1000;
-}
-
+/**
+ * A round is drawn zoomed, settles onto the round's clock and is held until the next one arrives, about
+ * 2.8 s later. That is this chart's own pace: at the globe's slowdown a round would not fit in a round.
+ */
+const DRAW_MS = 1900;
+const SETTLE_MS = 500;
 /** Below this many points a curve is drawn as steps: a slope between a handful of proposers would be made up */
 const STEP_BELOW = 20;
-
-/** Cumulative path, one point per node. The caller's clip cuts whatever lies past the window. */
-function trace(ctx: CanvasRenderingContext2D, sorted: number[], s: Scale) {
-  const n = sorted.length;
-  ctx.beginPath();
-  ctx.moveTo(s.sx(sorted[0]!), s.sy(0));
-  for (let i = 0; i < n; i++) {
-    if (n < STEP_BELOW) ctx.lineTo(s.sx(sorted[i]!), s.sy(i / n));
-    ctx.lineTo(s.sx(sorted[i]!), s.sy((i + 1) / n));
-  }
-  ctx.lineTo(Math.max(s.x1, s.sx(sorted[n - 1]!)), s.sy(1));
-}
-
-function clip(ctx: CanvasRenderingContext2D, s: Scale, toX: number) {
-  ctx.beginPath();
-  ctx.rect(s.x0 - 3, s.y0 - 8, toX - s.x0 + 3, s.y1 - s.y0 + 16);
-  ctx.clip();
-}
-
-function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
-  ctx.beginPath();
-  ctx.arc(x, y, 6, 0, Math.PI * 2);
-  ctx.fillStyle = INK.surface;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-interface Scene {
-  cur: WaveCurves;
-  sheaf: WaveCurves[];
-  /** ms after the first arrival at the plot's right edge */
-  win: number;
-  colors: string[];
-  /** ms on the round's own clock the playhead has reached */
-  t: number;
-  sweeping: boolean;
-  hoverX: number | null;
-}
-
-function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
-  const s = scaleOf(w, h, sc.win);
-  ctx.clearRect(0, 0, w, h);
-  ctx.font = FONT;
-  ctx.lineWidth = 1;
-
-  ctx.textBaseline = 'alphabetic';
-  const step = tickStep(s.win, s.x1 - s.x0);
-  for (let ms = 0; ms <= s.win; ms += step) {
-    const x = Math.round(s.sx(ms)) + 0.5;
-    ctx.strokeStyle = INK.grid;
-    ctx.beginPath();
-    ctx.moveTo(x, s.y0);
-    ctx.lineTo(x, s.y1);
-    ctx.stroke();
-    ctx.fillStyle = INK.muted;
-    ctx.textAlign = ms === 0 ? 'left' : 'center';
-    ctx.fillText(ms === 0 ? '0 ms' : `+${ms}`, x, h - 4);
-  }
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  for (const level of [0, 0.5, 1]) {
-    const y = Math.round(s.sy(level)) + 0.5;
-    ctx.strokeStyle = INK.grid;
-    ctx.beginPath();
-    ctx.moveTo(s.x0, y);
-    ctx.lineTo(s.x1, y);
-    ctx.stroke();
-    ctx.fillStyle = INK.muted;
-    ctx.fillText(`${level * 100}%`, s.x0 - 6, y);
-  }
-
-  // earlier rounds, whole and faint, so an unusual round stands out from its own history
-  ctx.save();
-  clip(ctx, s, s.x1 + 1);
-  ctx.globalAlpha = SHEAF_ALPHA;
-  for (const past of sc.sheaf) {
-    CURVE_KINDS.forEach((kind, i) => {
-      if (past[kind].length < 2) return;
-      ctx.strokeStyle = sc.colors[i]!;
-      trace(ctx, past[kind], s);
-      ctx.stroke();
-    });
-  }
-  ctx.restore();
-
-  // this round, drawn up to the playhead
-  const headX = sc.sweeping ? s.sx(sc.t) : s.x1 + 1;
-  ctx.save();
-  clip(ctx, s, headX);
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  CURVE_KINDS.forEach((kind, i) => {
-    if (sc.cur[kind].length < 2) return;
-    ctx.strokeStyle = sc.colors[i]!;
-    trace(ctx, sc.cur[kind], s);
-    ctx.stroke();
-  });
-  ctx.restore();
-
-  // a dot lands on the 50% line as each curve crosses it
-  CURVE_KINDS.forEach((kind, i) => {
-    const vals = sc.cur[kind];
-    if (vals.length < 2) return;
-    const median = vals[Math.ceil(vals.length / 2) - 1]!;
-    if (sc.t >= median && median <= s.win) dot(ctx, s.sx(median), s.sy(0.5), sc.colors[i]!);
-  });
-
-  if (sc.hoverX !== null) {
-    const x = Math.round(Math.max(s.x0, Math.min(s.x1, sc.hoverX))) + 0.5;
-    ctx.strokeStyle = INK.muted;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(x, s.y0);
-    ctx.lineTo(x, s.y1);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  if (sc.sweeping) {
-    ctx.strokeStyle = INK.head;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(headX, s.y0 - 4);
-    ctx.lineTo(headX, s.y1);
-    ctx.stroke();
-  }
-}
+/** Gap that keeps the proposal off the break between the two zoomed axes, px */
+const FENCE = 8;
 
 const MODES: { mode: CurveMode; label: string }[] = [
   { mode: 'relay', label: 'BY RELAY' },
@@ -207,17 +54,266 @@ function savedMode(): CurveMode {
   }
 }
 
+const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+interface Plot {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  sy: (share: number) => number;
+}
+
+/** Each kind's zero while zoomed: the proposal's first arrival, and the first soft vote for both votes. */
+const zeros = (c: WaveCurves): Record<CurveKind, number> => {
+  const soft = c.soft[0] ?? c.cert[0] ?? 0;
+  return { block: c.block[0] ?? 0, soft, cert: soft };
+};
+
+/**
+ * x of a moment for one round. Zoomed (settle 0) the proposal counts from the left edge and the votes from
+ * a third of the width, both at the zoom scale; settled (1) everything sits on the round's clock.
+ */
+function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number) {
+  const w = p.x1 - p.x0;
+  const zero = zeros(c);
+  const m = scale.split ? settle : 1;
+  return {
+    zero,
+    x: (kind: CurveKind, ms: number) => {
+      const zoomed =
+        kind === 'block'
+          ? p.x0 + ((ms - zero.block) / scale.zoom) * w
+          : p.x0 + w / 3 + ((ms - zero.soft) / scale.zoom) * w;
+      const round = p.x0 + (ms / scale.round) * w;
+      return zoomed + (round - zoomed) * m;
+    },
+    /** While zoomed a curve stays inside its own axis; the fence opens as the axes merge. */
+    fence: (kind: CurveKind): [number, number] =>
+      kind === 'block'
+        ? [p.x0, p.x0 + w / 3 - FENCE + ((w * 2) / 3 + FENCE) * m]
+        : [p.x0 + (w / 3) * (1 - m), p.x1],
+  };
+}
+
+interface Scene {
+  cur: WaveCurves;
+  sheaf: WaveCurves[];
+  scale: CurveScale;
+  colors: string[];
+  /** ms of the round drawn so far, counted from each zoomed axis's zero */
+  tau: number;
+  /** 0 zoomed .. 1 on the round's clock */
+  settle: number;
+  drawing: boolean;
+  hoverX: number | null;
+}
+
+function curves(
+  ctx: CanvasRenderingContext2D,
+  p: Plot,
+  sc: Scene,
+  c: WaveCurves,
+  settle: number,
+  tau: number,
+) {
+  const map = mapper(p, sc.scale, c, settle);
+  CURVE_KINDS.forEach((kind, i) => {
+    const vals = c[kind];
+    const n = vals.length;
+    if (n < 2) return;
+    const [left, right] = map.fence(kind);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left - 2, p.y0 - 6, right - left + 4, p.y1 - p.y0 + 12);
+    ctx.clip();
+    ctx.strokeStyle = sc.colors[i]!;
+    ctx.beginPath();
+    ctx.moveTo(map.x(kind, vals[0]!), p.sy(0));
+    for (let k = 0; k < n && vals[k]! - map.zero[kind] <= tau; k++) {
+      const x = map.x(kind, vals[k]!);
+      if (n < STEP_BELOW) ctx.lineTo(x, p.sy(k / n));
+      ctx.lineTo(x, p.sy((k + 1) / n));
+    }
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+function tick(
+  ctx: CanvasRenderingContext2D,
+  p: Plot,
+  x: number,
+  text: string,
+  textY: number,
+  alpha: number,
+  align: CanvasTextAlign,
+) {
+  const xx = Math.round(x) + 0.5;
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = INK.grid;
+  ctx.beginPath();
+  ctx.moveTo(xx, p.y0);
+  ctx.lineTo(xx, p.y1);
+  ctx.stroke();
+  ctx.fillStyle = INK.muted;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, xx, textY);
+  ctx.globalAlpha = 1;
+}
+
+function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
+  const p: Plot = { x0: PAD.l, x1: w - PAD.r, y0: PAD.t, y1: h - PAD.b, sy: () => 0 };
+  p.sy = (share) => p.y1 - share * (p.y1 - p.y0);
+  const plotW = p.x1 - p.x0;
+  const { scale } = sc;
+  const settle = scale.split ? sc.settle : 1;
+  const zoomAlpha = 1 - settle;
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = FONT;
+  ctx.lineWidth = 1;
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (const share of [0, 0.5, 1]) {
+    const y = Math.round(p.sy(share)) + 0.5;
+    ctx.strokeStyle = INK.grid;
+    ctx.beginPath();
+    ctx.moveTo(p.x0, y);
+    ctx.lineTo(p.x1, y);
+    ctx.stroke();
+    ctx.fillStyle = INK.muted;
+    ctx.fillText(`${share * 100}%`, p.x0 - 6, y);
+  }
+
+  // the round's clock is always there, under the plot; it comes forward as the round settles
+  const roundStep = [10, 20, 50, 100, 250, 500, 1000].find((s) => scale.round / s <= 9) ?? 1000;
+  for (let ms = 0; ms <= scale.round; ms += roundStep) {
+    const text = ms === 0 ? '0 ms' : fmt.int(ms);
+    const x = p.x0 + (ms / scale.round) * plotW;
+    tick(ctx, p, x, text, h - 5, 0.45 + 0.55 * settle, ms ? 'center' : 'left');
+  }
+
+  // the two zoomed axes, same scale, read along the top while a round is drawn
+  const zero = zeros(sc.cur);
+  if (zoomAlpha > 0.01) {
+    const step = [10, 25, 50, 100, 150, 200, 250, 500].find((s) => scale.zoom / 3 / s <= 3.2) ?? 500;
+    for (let ms = 0; ms < scale.zoom / 3 - step * 0.3; ms += step) {
+      const x = p.x0 + (ms / scale.zoom) * plotW;
+      tick(ctx, p, x, ms ? `+${ms}` : '0', p.y0 + 12, zoomAlpha, ms ? 'center' : 'left');
+    }
+    for (let ms = 0; ms <= (scale.zoom * 2) / 3; ms += step) {
+      const x = p.x0 + plotW / 3 + (ms / scale.zoom) * plotW;
+      tick(ctx, p, x, ms ? `+${ms}` : '0', p.y0 + 12, zoomAlpha, ms ? 'center' : 'left');
+    }
+    ctx.globalAlpha = zoomAlpha;
+    const bx = Math.round(p.x0 + plotW / 3 - FENCE / 2) + 0.5;
+    ctx.strokeStyle = INK.muted;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(bx, p.y0 - 4);
+    ctx.lineTo(bx, p.y1 + 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = INK.dim;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('PROPOSAL · MS AFTER ITS FIRST', p.x0 + 4, p.y0 - 8);
+    ctx.fillText(
+      `SOFT + CERT · MS AFTER THE FIRST SOFT VOTE, ${fmt.int(zero.soft)} MS INTO THE ROUND`,
+      p.x0 + plotW / 3 + 4,
+      p.y0 - 8,
+    );
+    ctx.globalAlpha = 1;
+  }
+  if (settle > 0.01) {
+    ctx.globalAlpha = settle;
+    ctx.fillStyle = INK.dim;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(
+      scale.split ? "WHOLE ROUND · MS AFTER THE ROUND'S FIRST VOTE" : 'MS AFTER THE FIRST SIGHTING',
+      p.x0 + 4,
+      p.y0 - 8,
+    );
+    ctx.globalAlpha = 1;
+  }
+
+  // earlier rounds stay put on the round's clock, so the one being drawn drops in among them
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.2;
+  for (const past of sc.sheaf) curves(ctx, p, sc, past, 1, Number.POSITIVE_INFINITY);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  curves(ctx, p, sc, sc.cur, settle, sc.tau);
+
+  // where an equal-weight network would have enough soft and cert votes
+  const map = mapper(p, scale, sc.cur, settle);
+  CURVE_KINDS.forEach((kind, i) => {
+    const share = QUORUM[kind];
+    const at = share === undefined ? undefined : reachedAt(sc.cur[kind], share);
+    if (share === undefined || at === undefined || sc.cur[kind].length < 2) return;
+    if (at - map.zero[kind] > sc.tau) return;
+    const x = Math.round(map.x(kind, at)) + 0.5;
+    if (x > p.x1) return;
+    ctx.strokeStyle = sc.colors[i]!;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, p.y0);
+    ctx.lineTo(x, p.y1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = INK.text;
+    ctx.textBaseline = 'alphabetic';
+    // the two thresholds sit close together: soft reads to the left of its line, cert to the right
+    ctx.textAlign = kind === 'soft' ? 'right' : 'left';
+    const text = `${CURVE_LABELS[kind].split(' ')[0]} ${Math.round(share * 100)}% · ${fmt.int(at)} ms`;
+    ctx.fillText(text, x + (kind === 'soft' ? -5 : 5), p.sy(0.12) + (kind === 'soft' ? 0 : 13));
+  });
+
+  if (sc.hoverX !== null && !sc.drawing && settle === 1) {
+    const x = Math.round(Math.max(p.x0, Math.min(p.x1, sc.hoverX))) + 0.5;
+    ctx.strokeStyle = INK.muted;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, p.y0);
+    ctx.lineTo(x, p.y1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (sc.drawing) {
+    ctx.strokeStyle = INK.head;
+    ctx.lineWidth = 1.5;
+    const lead = (sc.tau / scale.zoom) * plotW;
+    const xs = [scale.split ? p.x0 + plotW / 3 + lead : p.x0 + lead];
+    if (scale.split && sc.tau < scale.zoom / 3 - (FENCE / plotW) * scale.zoom) xs.push(p.x0 + lead);
+    for (const x of xs) {
+      ctx.beginPath();
+      ctx.moveTo(x, p.y0 - 4);
+      ctx.lineTo(x, p.y1);
+      ctx.stroke();
+    }
+  }
+}
+
 /** One finished round, ready to draw either way */
 type Round = Record<CurveMode, WaveCurves>;
 
 /**
  * Cumulative arrival of the newest finished round as three curves: the winning proposal, the soft vote and
- * the cert vote, over a sheaf of the rounds before it.
+ * the cert vote, on the round's own clock (ms after the round's first vote), over the rounds before it.
  *
- * By relay, a step is a relay, each kind counted from its first relay. By address, a step is a voting
- * account taken as if it were a node: when its vote first reached any relay, counted from the first vote of
- * that kind (for the proposal, one step per proposer). Both replay at the globe's slowdown (the same
- * wavePlan); by address the window is wider, so that replay runs longer. Votes exist only with avmonitor.
+ * A round first draws zoomed on two axes of one scale: the proposal from the left edge, soft and cert from
+ * a third of the width, counted from the first soft vote so the cert vote keeps its true distance. Then it
+ * settles onto the whole-round axis, where the earlier rounds already are. Dashed lines mark where the soft
+ * and cert curves cross their consensus threshold share.
+ *
+ * By relay, a step is a relay. By address, a step is a voting account taken as if it were a node: when its
+ * vote first reached any relay (for the proposal, one step per proposer). Votes exist only with avmonitor.
  */
 export function VoteCurves({ wave, colors }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -225,12 +321,11 @@ export function VoteCurves({ wave, colors }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [wanted, setWanted] = useState<CurveMode>(savedMode);
+  const [settled, setSettled] = useState(false);
   const live = useRef<{ cur?: Round; sheaf: Round[]; born: number }>({ sheaf: [], born: 0 });
 
   // without account data (polled propagation) only the relay view exists
   const mode: CurveMode = wave?.accounts ? wanted : 'relay';
-  const plan = wavePlan(wave);
-  const win = curveWindow(wave, mode, plan);
 
   useEffect(() => {
     const el = wrap.current;
@@ -240,7 +335,7 @@ export function VoteCurves({ wave, colors }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  // A new round: the one on screen joins the sheaf and the replay starts, in step with the globe's
+  // A new round: the one on screen joins the history and the new one starts drawing
   // biome-ignore lint/correctness/useExhaustiveDependencies: fires once per round
   useEffect(() => {
     if (!wave) return;
@@ -251,37 +346,56 @@ export function VoteCurves({ wave, colors }: Props) {
     l.born = still ? Number.NEGATIVE_INFINITY : performance.now();
   }, [wave?.round]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, mode, size and hover; the sweep runs itself
+  const cur = wave ? waveCurves(wave, mode) : undefined;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, mode, size and hover; the animation runs itself
   useEffect(() => {
     const c = canvas.current;
     const l = live.current;
-    if (!c || !l.cur || size.w < 80 || size.h < 60) return;
-    const cur = l.cur[mode];
-    const sheaf = l.sheaf.map((r) => r[mode]);
+    if (!c || !cur || size.w < 120 || size.h < 70) return;
+    const sheaf = l.sheaf.map((r) => r[mode]).filter((r) => r.round !== cur.round);
+    // axes that fit this round and the ones behind it, so they hold still from round to round
+    const scale = curveScale([cur, ...sheaf]);
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(size.w * dpr);
     c.height = Math.round(size.h * dpr);
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // the votes' axis is the wider one: it sets how much of the round has to be drawn
+    const tauMax = scale.split ? (scale.zoom * 2) / 3 : scale.zoom;
     let raf = 0;
     const frame = (now: number) => {
-      const t = (now - l.born) / plan.slow;
-      const sweeping = t < win;
-      paint(ctx, size.w, size.h, { cur, sheaf, win, colors, t: Math.min(t, win), sweeping, hoverX });
-      if (sweeping) raf = requestAnimationFrame(frame);
+      const el = now - l.born;
+      const drawing = el < DRAW_MS;
+      const moving = el < DRAW_MS + SETTLE_MS;
+      paint(ctx, size.w, size.h, {
+        cur,
+        sheaf,
+        scale,
+        colors,
+        tau: drawing ? (el / DRAW_MS) * tauMax : Number.POSITIVE_INFINITY,
+        settle: drawing ? 0 : moving ? ease((el - DRAW_MS) / SETTLE_MS) : 1,
+        drawing,
+        hoverX,
+      });
+      setSettled(!moving);
+      if (moving) raf = requestAnimationFrame(frame);
     };
     frame(performance.now());
     return () => cancelAnimationFrame(raf);
   }, [wave?.round, mode, size.w, size.h, hoverX]);
 
-  const cur = wave ? waveCurves(wave, mode) : undefined;
   const kinds = CURVE_KINDS.map((kind, i) => ({ kind, color: colors[i]! })).filter(
     (k) => cur && cur[k.kind].length >= 2,
   );
+  // the readout is on the round's clock, so it waits until the round has settled onto it
+  const span = cur
+    ? curveScale([cur, ...live.current.sheaf.map((r) => r[mode]).filter((r) => r.round !== cur.round)]).round
+    : 0;
   const hoverMs =
-    hoverX === null
+    hoverX === null || !cur || !settled
       ? null
-      : Math.max(0, Math.min(win, ((hoverX - PAD.l) / Math.max(1, size.w - PAD.l - PAD.r)) * win));
+      : Math.max(0, Math.min(span, ((hoverX - PAD.l) / Math.max(1, size.w - PAD.l - PAD.r)) * span));
   const pick = (m: CurveMode) => {
     setWanted(m);
     try {
@@ -328,7 +442,7 @@ export function VoteCurves({ wave, colors }: Props) {
               style={hoverX > size.w / 2 ? { right: size.w - hoverX + 10 } : { left: hoverX + 10 }}
             >
               <div className="chart-tip-title">
-                #{fmt.int(cur.round)} · +{fmt.num(hoverMs, 1)} ms
+                #{fmt.int(cur.round)} · {fmt.int(hoverMs)} ms into the round
               </div>
               {kinds.map((k) => (
                 <div key={k.kind} className="chart-tip-row">
