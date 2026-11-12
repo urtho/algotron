@@ -4,12 +4,12 @@ import {
   CURVE_KINDS,
   CURVE_LABELS,
   type CurveMode,
-  curvePlan,
+  curveWindow,
   fmt,
   shareAt,
   type WaveCurves,
-  type WavePlan,
   waveCurves,
+  wavePlan,
 } from '../stats.ts';
 import { ChartPanel } from './Chart.tsx';
 
@@ -95,7 +95,8 @@ function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string)
 interface Scene {
   cur: WaveCurves;
   sheaf: WaveCurves[];
-  plan: WavePlan;
+  /** ms after the first arrival at the plot's right edge */
+  win: number;
   colors: string[];
   /** ms on the round's own clock the playhead has reached */
   t: number;
@@ -104,7 +105,7 @@ interface Scene {
 }
 
 function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
-  const s = scaleOf(w, h, sc.plan.max * 1.3);
+  const s = scaleOf(w, h, sc.win);
   ctx.clearRect(0, 0, w, h);
   ctx.font = FONT;
   ctx.lineWidth = 1;
@@ -120,7 +121,7 @@ function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
     ctx.stroke();
     ctx.fillStyle = INK.muted;
     ctx.textAlign = ms === 0 ? 'left' : 'center';
-    ctx.fillText(ms === 0 ? '0' : `+${ms}`, x, h - 4);
+    ctx.fillText(ms === 0 ? '0 ms' : `+${ms}`, x, h - 4);
   }
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
@@ -193,16 +194,16 @@ function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
 }
 
 const MODES: { mode: CurveMode; label: string }[] = [
-  { mode: 'node', label: 'BY NODE' },
+  { mode: 'relay', label: 'BY RELAY' },
   { mode: 'address', label: 'BY ADDRESS' },
 ];
 const MODE_KEY = 'algotron.curves.mode';
 
 function savedMode(): CurveMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'address' ? 'address' : 'node';
+    return localStorage.getItem(MODE_KEY) === 'address' ? 'address' : 'relay';
   } catch {
-    return 'node';
+    return 'relay';
   }
 }
 
@@ -213,10 +214,10 @@ type Round = Record<CurveMode, WaveCurves>;
  * Cumulative arrival of the newest finished round as three curves: the winning proposal, the soft vote and
  * the cert vote, over a sheaf of the rounds before it.
  *
- * By node, a step is a relay and the clock is the globe's (the same wavePlan), each kind counted from its
- * first relay. By address, a step is a voting account taken as if it were a node: when its vote first
- * reached any relay, counted from the first vote of that kind (for the proposal, one step per proposer).
- * That view has its own, slower clock. Votes exist only with the avmonitor feed.
+ * By relay, a step is a relay, each kind counted from its first relay. By address, a step is a voting
+ * account taken as if it were a node: when its vote first reached any relay, counted from the first vote of
+ * that kind (for the proposal, one step per proposer). Both replay at the globe's slowdown (the same
+ * wavePlan); by address the window is wider, so that replay runs longer. Votes exist only with avmonitor.
  */
 export function VoteCurves({ wave, colors }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -226,10 +227,10 @@ export function VoteCurves({ wave, colors }: Props) {
   const [wanted, setWanted] = useState<CurveMode>(savedMode);
   const live = useRef<{ cur?: Round; sheaf: Round[]; born: number }>({ sheaf: [], born: 0 });
 
-  // without account data (polled propagation) only the node view exists
-  const mode: CurveMode = wave?.accounts ? wanted : 'node';
-  const plan = curvePlan(wave, mode);
-  const win = plan.max * 1.3;
+  // without account data (polled propagation) only the relay view exists
+  const mode: CurveMode = wave?.accounts ? wanted : 'relay';
+  const plan = wavePlan(wave);
+  const win = curveWindow(wave, mode, plan);
 
   useEffect(() => {
     const el = wrap.current;
@@ -244,8 +245,8 @@ export function VoteCurves({ wave, colors }: Props) {
   useEffect(() => {
     if (!wave) return;
     const l = live.current;
-    if (l.cur && l.cur.node.round !== wave.round) l.sheaf = [...l.sheaf, l.cur].slice(-SHEAF);
-    l.cur = { node: waveCurves(wave, 'node'), address: waveCurves(wave, 'address') };
+    if (l.cur && l.cur.relay.round !== wave.round) l.sheaf = [...l.sheaf, l.cur].slice(-SHEAF);
+    l.cur = { relay: waveCurves(wave, 'relay'), address: waveCurves(wave, 'address') };
     const still = document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches;
     l.born = still ? Number.NEGATIVE_INFINITY : performance.now();
   }, [wave?.round]);
@@ -266,7 +267,7 @@ export function VoteCurves({ wave, colors }: Props) {
     const frame = (now: number) => {
       const t = (now - l.born) / plan.slow;
       const sweeping = t < win;
-      paint(ctx, size.w, size.h, { cur, sheaf, plan, colors, t: Math.min(t, win), sweeping, hoverX });
+      paint(ctx, size.w, size.h, { cur, sheaf, win, colors, t: Math.min(t, win), sweeping, hoverX });
       if (sweeping) raf = requestAnimationFrame(frame);
     };
     frame(performance.now());
@@ -289,19 +290,11 @@ export function VoteCurves({ wave, colors }: Props) {
       // the choice then lasts for this visit only
     }
   };
-  const speed = plan.slow > 1 ? `slowed ${plan.slow}×` : 'real speed';
 
   return (
     <div className="curves">
       <ChartPanel
         title="ARRIVAL CURVES"
-        note={
-          mode === 'address'
-            ? `accounts · ms after first vote · ${speed}`
-            : wave?.source === 'avmonitor'
-              ? 'relays · ms after first relay'
-              : 'nodes · ms after first sighting'
-        }
         legend={kinds.map((k) => ({ name: CURVE_LABELS[k.kind], color: k.color }))}
         value={
           wave?.accounts && (

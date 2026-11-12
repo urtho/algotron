@@ -80,7 +80,15 @@ export interface BlockStat {
   /** avmonitor only: ms from the round's first vote to the median relay's median soft / cert vote */
   softMs?: number;
   certMs?: number;
+  /** avmonitor only: when this round's votes of each kind first reached any relay, over the voting accounts */
+  voteBox?: { proposal?: VoteBox; soft?: VoteBox; cert?: VoteBox };
 }
+
+/**
+ * Votes of one kind in one round: how many, then when they first reached any relay, in ms after the
+ * round's first vote of any kind: [votes, earliest, p5, p25, median, p75, p95]. For proposals a vote is a proposer.
+ */
+export type VoteBox = [number, number, number, number, number, number, number];
 
 /**
  * How one finished round's block reached the nodes: the first node and every

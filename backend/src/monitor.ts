@@ -410,6 +410,7 @@ export class Monitor {
       reach: delays.length,
       softMs: t.softMs,
       certMs: t.certMs,
+      voteBox: t.boxes,
     };
     const block = this.blocks.find((b) => b.round === t.round);
     if (block) Object.assign(block, patch);

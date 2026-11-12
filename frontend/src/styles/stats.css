@@ -24,12 +24,12 @@
 @property --charts {
   syntax: "<number>";
   inherits: true;
-  initial-value: 34;
+  initial-value: 32;
 }
 @property --bottom {
   syntax: "<number>";
   inherits: true;
-  initial-value: 21;
+  initial-value: 28;
 }
 
 .app-dash {
@@ -81,7 +81,7 @@
 }
 .dash-bottom {
   display: grid;
-  grid-template-columns: minmax(250px, 30%) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px;
   background: var(--border);
 }
@@ -89,9 +89,6 @@
   background: var(--bg);
   min-height: 0;
   min-width: 0;
-}
-.dash-bottom .terminal-pane {
-  border-top: 0;
 }
 
 /* ── Top bar ────────────────────────────────────────────────────────────────── */
@@ -599,61 +596,28 @@
   white-space: nowrap;
 }
 
-/* ── Proposers: ring + top list ─────────────────────────────────────────────── */
+/* ── Proposers: ring in the globe's top right corner ────────────────────────── */
 .proposers {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: clamp(130px, 18vh, 200px);
   display: flex;
   flex-direction: column;
-}
-.proposers-split {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
 }
 .proposer-ring {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1;
   display: block;
-  min-height: 0;
 }
-.proposers-body {
-  min-height: 0;
-  overflow: hidden;
-  padding: 6px 12px 6px 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-evenly;
-}
-.proposer {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) 22px;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink);
-  text-decoration: none;
-  font-variant-numeric: tabular-nums;
-}
-.proposer:hover .proposer-addr,
-.proposer--on .proposer-addr {
-  color: #e6fff7;
-}
-.proposer-bar {
-  display: block;
-  height: 6px;
-  background: var(--bg3);
-}
-.proposer-bar span {
-  display: block;
-  height: 100%;
-  background: var(--c1);
-  border-radius: 0 3px 3px 0;
-}
-.proposer--on .proposer-bar span {
-  background: #e6fff7;
-}
-.proposer-n {
-  text-align: right;
+.proposers-note {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 /* ── Hero throughput ────────────────────────────────────────────────────────── */
@@ -738,8 +702,8 @@
 /* ── Wall mode: one panel takes the stage at a time ─────────────────────────── */
 .dash {
   --left: 36;
-  --charts: 34;
-  --bottom: 21;
+  --charts: 32;
+  --bottom: 28;
   transition:
     --left 1.6s ease-in-out,
     --charts 1.6s ease-in-out,
@@ -751,19 +715,19 @@
 .dash--stage-globe {
   --left: 58;
   --charts: 30;
-  --bottom: 18;
+  --bottom: 24;
 }
 .dash--stage-charts {
   --left: 30;
-  --charts: 56;
-  --bottom: 12;
+  --charts: 52;
+  --bottom: 20;
 }
 .dash--stage-relays {
   --left: 30;
   --charts: 20;
-  --bottom: 12;
+  --bottom: 18;
 }
-.dash--stage-log {
+.dash--stage-votes {
   --left: 30;
   --charts: 24;
   --bottom: 44;

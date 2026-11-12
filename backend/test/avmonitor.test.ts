@@ -109,6 +109,12 @@ describe('summarizeRound', () => {
     expect(t.certMs).toBe(950);
     // one entry per voting account, counted from the first vote of its kind
     expect(t.accounts).toEqual({ proposal: [0, 3], soft: [0, 3], cert: [0] });
+    // count, earliest and five percentiles, on the round's own clock
+    expect(t.boxes).toEqual({
+      proposal: [2, 0, 0, 0, 3, 3, 3],
+      soft: [2, 212, 212, 212, 215, 215, 215],
+      cert: [1, 900, 900, 900, 900, 900, 900],
+    });
   });
 
   test('without a matrix the first proposal vote of any proposer stands in', () => {

@@ -6,12 +6,12 @@ const TICKS = 36;
 
 /**
  * Recent proposers as ticks on a ring (tick length = blocks proposed in the
- * window). The proposer of the newest block is highlighted and pings.
+ * window). The proposer of the newest block is highlighted and pings. It sits
+ * in the globe's top right corner.
  */
 export function ProposerRing(props: {
   rows: ProposerRow[];
   newest?: BlockStat;
-  explorer: string;
   blocks: number;
   color: string;
 }) {
@@ -90,34 +90,10 @@ export function ProposerRing(props: {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const top = props.rows.slice(0, 5);
-  const most = Math.max(1, ...top.map((r) => r.blocks));
   return (
-    <section className="proposers">
-      <header className="chart-head">
-        <span className="panel-title">PROPOSERS</span>
-        <span className="chart-note">last {props.blocks} blocks</span>
-      </header>
-      <div className="proposers-split">
-        <canvas ref={canvas} className="proposer-ring" />
-        <div className="proposers-body">
-          {top.map((r) => (
-            <a
-              key={r.address}
-              className={`proposer${r.address === props.newest?.proposer ? ' proposer--on' : ''}`}
-              href={`${props.explorer}/account/${r.address}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span className="proposer-addr">{r.address.slice(0, 6)}</span>
-              <span className="proposer-bar">
-                <span style={{ width: `${(r.blocks / most) * 100}%` }} />
-              </span>
-              <span className="proposer-n">{r.blocks}</span>
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
+    <div className="proposers">
+      <canvas ref={canvas} className="proposer-ring" />
+      <span className="proposers-note">PROPOSERS · LAST {props.blocks} BLOCKS</span>
+    </div>
   );
 }

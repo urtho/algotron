@@ -14,7 +14,7 @@ Version 2 adds realtime chain statistics:
 
 - **Live block tracking**: every node is polled about twice a second, once for all clients
 - **Realtime chain stats from the nodes themselves**: TPS, block time, transactions per block by type,
-  block size, certificate votes, proposer payouts and top proposers, all decoded from the blocks the
+  block size, certificate votes, proposer payouts and recent proposers, all decoded from the blocks the
   relays serve. No indexer, no algod API token
 - **Block propagation**: how long relays take to show a block after the first one does
 - **3D globe that replays every finished round**: a ring at the node that had the block first, one arc to every
@@ -29,7 +29,7 @@ Version 2 adds realtime chain statistics:
   5 minutes without input (`?idle=0` disables that, `?idle=60` sets seconds); pointer movement or a key ends it
 - **Honeycomb wall**: one hex per node, fastest reply first (re-ranked once a minute so hexes stay put),
   flashing in the same replay as the globe; hover for detail
-- **Proposer ring, moments**: the current proposer on a ring, and a
+- **Proposer ring, moments**: the current proposer on a ring in the globe's corner, and a
   banner for bursts, slow rounds and nodes that drop or recover
 - **Status**: synced / lagging / behind / no answer (with the reason), IPv6 reachability per host
 - **Boot terminal**: Encom-style discovery sequence on first load
@@ -117,9 +117,12 @@ delay, so propagation is measured in milliseconds instead of polled.
 - **Arrival curves** (under the globe): the share of timed relays that have the winning proposal, the soft
   vote and the cert vote, each counted from its own first relay, replayed on the globe's clock over the last
   ten rounds. Soft and cert are each relay's median vote delivery. Without avmonitor only the proposal curve
-  shows. The **by node / by address** switch redraws it with one step per voting account (for the proposal,
+  shows. The **by relay / by address** switch redraws it with one step per voting account (for the proposal,
   per proposer), as if each account were a node: when its vote first reached any relay, counted from the
-  first vote of that kind. Votes leave accounts over hundreds of ms, so that view has its own slower clock.
+  first vote of that kind. Both views replay at the globe's slowdown; by address the window is wider.
+- **Vote boxes** (bottom row): for proposals, soft votes and cert votes, one box per round over the last 45
+  rounds (whisker 5–95%, box 25–75%, tick at the median) of when the votes first reached any relay, and a
+  strip counting them. A switch sets the zero: the round's first vote, or the first vote of that kind.
 - **Soft and cert votes**: per relay, the median delivery relative to the fastest relay (shown on hover), and
   per round the time from the first vote to the median soft and cert vote.
 - Relays are matched by address, then host. Nodes avmonitor does not cover (archivers) keep polled figures
@@ -144,7 +147,7 @@ backend/src/
 frontend/src/
   state.ts               WebSocket feed + reducer
   stats.ts               TPS, block time, proposers, fleet summary
-  components/            Globe, VoteCurves, HexWall, Chart, Kpis, ProposerRing, Moments ...
+  components/            Globe, VoteCurves, VoteBoxes, HexWall, Chart, Kpis, ProposerRing, Moments ...
 ```
 
 ## Message protocol

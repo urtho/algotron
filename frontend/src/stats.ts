@@ -1,4 +1,4 @@
-import type { BlockStat, NodeState, Wave } from '../../shared/types.ts';
+import type { BlockStat, NodeState, VoteBox, Wave } from '../../shared/types.ts';
 
 /** Every replay is stretched (or left alone) so the 95th-percentile node lands this long after the first */
 export const WAVE_PLAY_MS = 2000;
@@ -36,12 +36,12 @@ export const CURVE_LABELS: Record<CurveKind, string> = {
 };
 
 /** What one step of a curve is: a relay, or a voting account taken as if it were a node */
-export type CurveMode = 'node' | 'address';
+export type CurveMode = 'relay' | 'address';
 
 /** One round's arrival delays per kind, ascending, ms after that kind's first arrival. A kind without data is empty. */
 export type WaveCurves = { round: number } & Record<CurveKind, number[]>;
 
-export function waveCurves(wave: Wave, mode: CurveMode = 'node'): WaveCurves {
+export function waveCurves(wave: Wave, mode: CurveMode = 'relay'): WaveCurves {
   if (mode === 'address') {
     return { round: wave.round, block: [], soft: [], cert: [], ...wave.accounts };
   }
@@ -50,17 +50,45 @@ export function waveCurves(wave: Wave, mode: CurveMode = 'node'): WaveCurves {
 }
 
 /**
- * Replay clock of the arrival curves. By node it is the globe's. Votes leave their accounts over a far
- * longer stretch than they take to cross the relays, so by address the clock is the curves' own: the
- * slowest kind's 95th-percentile account lands WAVE_PLAY_MS in.
+ * Right edge of the arrival curves, ms. Every view replays at the globe's slowdown; by relay the window is
+ * the globe's too. Votes leave their accounts over a longer stretch than they take to cross the relays, so
+ * by address the window grows until the slowest kind's 95th-percentile account fits, and that replay runs longer.
  */
-export function curvePlan(wave: Wave | undefined, mode: CurveMode): WavePlan {
-  if (mode === 'node' || !wave?.accounts) return wavePlan(wave);
+export function curveWindow(wave: Wave | undefined, mode: CurveMode, plan: WavePlan): number {
+  const base = plan.max * 1.3;
+  if (mode === 'relay' || !wave?.accounts) return base;
   const p95 = CURVE_KINDS.map((k) => {
     const a = wave.accounts![k];
     return a[Math.floor(a.length * 0.95)] ?? 0;
   });
-  return planFor(Math.max(10, ...p95));
+  return Math.max(base, Math.max(...p95) * 1.3);
+}
+
+/** The per-round vote box charts */
+export const BOX_KINDS = ['proposal', 'soft', 'cert'] as const;
+export type BoxKind = (typeof BOX_KINDS)[number];
+/** Zero of a box chart: the round's first vote of any kind, or the first vote of the chart's own kind */
+export type BoxAxis = 'clock' | 'first';
+export const BOX_ROUNDS = 45;
+
+export interface BoxSlot {
+  round: number;
+  votes: number;
+  /** p5, p25, median, p75, p95 in ms on the chosen zero */
+  q: [number, number, number, number, number];
+}
+
+/** The newest `rounds` rounds that have vote timing for a kind, oldest first. */
+export function boxSlots(blocks: BlockStat[], kind: BoxKind, axis: BoxAxis, rounds = BOX_ROUNDS): BoxSlot[] {
+  const out: BoxSlot[] = [];
+  for (let i = blocks.length - 1; i >= 0 && out.length < rounds; i--) {
+    const box: VoteBox | undefined = blocks[i]!.voteBox?.[kind];
+    if (!box) continue;
+    const [votes, first, ...q] = box;
+    const zero = axis === 'first' ? first : 0;
+    out.push({ round: blocks[i]!.round, votes, q: q.map((ms) => ms - zero) as BoxSlot['q'] });
+  }
+  return out.reverse();
 }
 
 /** Share of the nodes (0..1) that have arrived `ms` after the first; `sorted` is ascending. */

@@ -11,7 +11,7 @@ export interface Tip {
   rows: { color?: string; label: string; value: string }[];
 }
 
-interface Frame {
+export interface Frame {
   ctx: CanvasRenderingContext2D;
   w: number;
   h: number;
@@ -58,10 +58,12 @@ function axis(f: Frame, max: number, unit: (v: number) => string, left: string, 
  * Canvas with device-pixel scaling, redraw on resize, and a hover layer:
  * `locate` maps a pointer x to the tooltip for the nearest mark.
  */
-function Canvas(props: {
+export function Canvas(props: {
   draw: (f: Frame, hoverX: number | null) => void;
   locate: (f: Omit<Frame, 'ctx'>, px: number) => Tip | null;
   deps: unknown[];
+  /** Right padding; the default leaves room for end labels */
+  padRight?: number;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -76,7 +78,14 @@ function Canvas(props: {
     return () => ro.disconnect();
   }, []);
 
-  const frame = { w: size.w, h: size.h, x0: PAD.l, x1: size.w - PAD.r, y0: PAD.t, y1: size.h - PAD.b };
+  const frame = {
+    w: size.w,
+    h: size.h,
+    x0: PAD.l,
+    x1: size.w - (props.padRight ?? PAD.r),
+    y0: PAD.t,
+    y1: size.h - PAD.b,
+  };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: redraw is driven by the caller's deps
   useEffect(() => {

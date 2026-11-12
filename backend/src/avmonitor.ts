@@ -7,6 +7,8 @@
  * section kinds are ignored, as the spec requires.
  */
 
+import type { VoteBox } from '../../shared/types.ts';
+
 export const NONE = 0xffff;
 export const KIND = { proposal: 0, soft: 1, cert: 2 } as const;
 const HEADER = 32;
@@ -187,6 +189,8 @@ export interface AvRoundTiming {
   certMs?: number;
   /** Per voting account: ms after the first vote of that kind to reach any relay, ascending */
   accounts: { proposal: number[]; soft: number[]; cert: number[] };
+  /** Per kind: vote count and when the votes first reached any relay, ms from the round's first vote */
+  boxes: { proposal?: VoteBox; soft?: VoteBox; cert?: VoteBox };
 }
 
 const median = (xs: number[]) => {
@@ -243,9 +247,17 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
   const cert = p50(KIND.cert);
 
   /** When each account's vote first reached any relay, counted from the earliest one */
+  const firsts = (kind: number) =>
+    [...(section(kind)?.first ?? [])].filter((ms) => ms !== NONE).sort((a, b) => a - b);
   const accounts = (kind: number) => {
-    const first = [...(section(kind)?.first ?? [])].filter((ms) => ms !== NONE).sort((a, b) => a - b);
+    const first = firsts(kind);
     return first.map((ms) => ms - first[0]!);
+  };
+  const box = (kind: number): VoteBox | undefined => {
+    const first = firsts(kind);
+    if (first.length === 0) return undefined;
+    const at = (p: number) => first[Math.min(first.length - 1, Math.floor(first.length * p))]!;
+    return [first.length, first[0]!, at(0.05), at(0.25), at(0.5), at(0.75), at(0.95)];
   };
 
   return {
@@ -261,6 +273,7 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
     softMs: median([...soft.abs.values()]),
     certMs: median([...cert.abs.values()]),
     accounts: { proposal: accounts(KIND.proposal), soft: accounts(KIND.soft), cert: accounts(KIND.cert) },
+    boxes: { proposal: box(KIND.proposal), soft: box(KIND.soft), cert: box(KIND.cert) },
   };
 }
 

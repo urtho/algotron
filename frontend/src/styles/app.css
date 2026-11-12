@@ -401,67 +401,6 @@ body::after {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* ── Terminal pane ─────────────────────────────────────────────────────────── */
-.terminal-pane {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  border-top: 1px solid var(--border);
-}
-
-.terminal-pane-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 7px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: rgba(0, 204, 255, 0.03);
-}
-
-.terminal-pane-count {
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.terminal-pane-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 10px;
-  line-height: 1.55;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border2) transparent;
-}
-
-.log-line {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.log-time {
-  color: var(--text-dim);
-  flex-shrink: 0;
-  font-size: 10px;
-}
-
-.log-sep {
-  flex-shrink: 0;
-  color: var(--border2);
-}
-
-.log-info .log-msg {
-  color: var(--text);
-}
-.log-warn .log-msg {
-  color: var(--yellow);
-}
-.log-error .log-msg {
-  color: var(--red);
-}
-
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes blink {
   0%,

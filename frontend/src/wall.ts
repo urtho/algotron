@@ -5,7 +5,7 @@ export const STAGES = [
   ['globe', 24],
   ['charts', 12],
   ['relays', 12],
-  ['log', 10],
+  ['votes', 12],
 ] as const;
 export type Stage = (typeof STAGES)[number][0];
 

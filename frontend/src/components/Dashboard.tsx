@@ -20,7 +20,7 @@ import { Kpis } from './Kpis.tsx';
 import { Moments } from './Moments.tsx';
 import { ProposerRing } from './ProposerRing.tsx';
 import { RoundClock } from './RoundClock.tsx';
-import { TerminalPane } from './TerminalPane.tsx';
+import { VoteBoxes } from './VoteBoxes.tsx';
 import { VoteCurves } from './VoteCurves.tsx';
 
 /** Chart series colors, validated for the dark surface (see styles/stats.css) */
@@ -93,6 +93,7 @@ export function Dashboard({ state }: { state: AppState }) {
               blockTime={summary.blockTime}
               connected={state.connected}
             />
+            <ProposerRing rows={proposers} newest={newest} blocks={blocks.length} color={C.line} />
           </div>
           <VoteCurves wave={state.wave} colors={C.kinds} />
         </div>
@@ -157,14 +158,7 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-bottom">
-            <ProposerRing
-              rows={proposers}
-              newest={newest}
-              explorer={config.explorer}
-              blocks={blocks.length}
-              color={C.line}
-            />
-            <TerminalPane logs={state.logs} />
+            <VoteBoxes blocks={blocks} colors={C.kinds} />
           </div>
         </div>
       </div>

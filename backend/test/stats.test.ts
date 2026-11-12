@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import {
-  curvePlan,
+  boxSlots,
+  curveWindow,
   shareAt,
   summarize,
   topProposers,
   tpsSeries,
   txParts,
   waveCurves,
+  wavePlan,
 } from '../../frontend/src/stats.ts';
 import type { BlockStat } from '../../shared/types.ts';
 
@@ -71,7 +73,7 @@ test('shareAt counts the nodes that have arrived by a moment', () => {
   expect(shareAt([], 10)).toBe(0);
 });
 
-test('by address the curves come from the accounts and run on their own clock', () => {
+test('by address the curves come from the accounts, at the globe speed in a wider window', () => {
   const wave = {
     round: 7,
     origin: 'a',
@@ -85,11 +87,34 @@ test('by address the curves come from the accounts and run on their own clock', 
     soft: [0, 100, 200, 400],
     cert: [0, 50],
   });
-  // the slowest kind's 95th percentile (400 ms) lands 2 s in
-  expect(curvePlan(wave, 'address')).toMatchObject({ max: 400, slow: 5 });
-  expect(curvePlan(wave, 'node')).toMatchObject({ max: 40, slow: 50 });
-  // without account data the address view has nothing and the clock stays the globe's
+  const plan = wavePlan(wave);
+  expect(plan).toMatchObject({ max: 40, slow: 50 });
+  expect(curveWindow(wave, 'relay', plan)).toBe(52);
+  // the slowest kind's 95th-percentile account (400 ms) has to fit
+  expect(curveWindow(wave, 'address', plan)).toBe(520);
+  // without account data the address view has nothing and keeps the globe's window
   const polled = { ...wave, accounts: undefined };
   expect(waveCurves(polled, 'address').soft).toEqual([]);
-  expect(curvePlan(polled, 'address').max).toBe(40);
+  expect(curveWindow(polled, 'address', plan)).toBe(52);
+});
+
+test('boxSlots takes the newest rounds with vote timing, on either zero', () => {
+  const blocks = [
+    block(0, { voteBox: { soft: [300, 2400, 2410, 2450, 2500, 2600, 2800] } }),
+    block(1),
+    block(2, {
+      voteBox: {
+        soft: [310, 2500, 2510, 2550, 2600, 2700, 2900],
+        cert: [200, 2600, 2610, 2620, 2640, 2700, 2900],
+      },
+    }),
+  ];
+  expect(boxSlots(blocks, 'soft', 'clock')).toEqual([
+    { round: 100, votes: 300, q: [2410, 2450, 2500, 2600, 2800] },
+    { round: 102, votes: 310, q: [2510, 2550, 2600, 2700, 2900] },
+  ]);
+  expect(boxSlots(blocks, 'soft', 'first', 1)).toEqual([
+    { round: 102, votes: 310, q: [10, 50, 100, 200, 400] },
+  ]);
+  expect(boxSlots(blocks, 'proposal', 'clock')).toEqual([]);
 });
