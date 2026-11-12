@@ -426,6 +426,28 @@
   }
 }
 
+/* ── Arrival curves (under the globe, on the globe's replay clock) ──────────── */
+.curves {
+  flex: 0 0 clamp(150px, 21vh, 230px);
+  border-top: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.curves > .chart-panel {
+  flex: 1;
+}
+.curves-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+}
+
 /* ── Block river (under the globe) ──────────────────────────────────────────── */
 .river {
   flex-shrink: 0;

@@ -22,6 +22,7 @@ import { Moments } from './Moments.tsx';
 import { ProposerRing } from './ProposerRing.tsx';
 import { RoundClock } from './RoundClock.tsx';
 import { TerminalPane } from './TerminalPane.tsx';
+import { VoteCurves } from './VoteCurves.tsx';
 
 /** Chart series colors, validated for the dark surface (see styles/stats.css) */
 const C = {
@@ -95,6 +96,7 @@ export function Dashboard({ state }: { state: AppState }) {
               connected={state.connected}
             />
           </div>
+          <VoteCurves wave={state.wave} colors={C.kinds} />
           <BlockRiver blocks={blocks} colors={C.kinds} explorer={config.explorer} labels={labels} />
         </div>
 

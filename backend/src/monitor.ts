@@ -418,7 +418,23 @@ export class Monitor {
       // delays are counted from the first relay that had the winning proposal vote
       const t0 = byNode[origin.id]!;
       for (const id in byNode) byNode[id] = byNode[id]! - t0;
-      this.sendWave({ round: t.round, origin: origin.id, delays: byNode, source: 'avmonitor' });
+      /** One vote kind by node id, counted from the fastest node; left out when fewer than two nodes have it */
+      const votes = (kind: 'soft' | 'cert') => {
+        const rows = [...best].flatMap(([node, d]) =>
+          d[kind] === undefined ? [] : [[node.id, d[kind]] as const],
+        );
+        if (rows.length < 2) return undefined;
+        const min = Math.min(...rows.map(([, ms]) => ms));
+        return Object.fromEntries(rows.map(([id, ms]) => [id, Math.round((ms - min) * 10) / 10]));
+      };
+      this.sendWave({
+        round: t.round,
+        origin: origin.id,
+        delays: byNode,
+        soft: votes('soft'),
+        cert: votes('cert'),
+        source: 'avmonitor',
+      });
     }
   }
 

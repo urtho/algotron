@@ -22,6 +22,35 @@ export function wavePlan(wave: Wave | undefined): WavePlan {
   return { max, slow, at: (delay) => Math.min(delay, max * 1.3) * slow };
 }
 
+/** The arrival curves under the globe, in round order. Colors: the first three chart series colors */
+export const CURVE_KINDS = ['block', 'soft', 'cert'] as const;
+export type CurveKind = (typeof CURVE_KINDS)[number];
+export const CURVE_LABELS: Record<CurveKind, string> = {
+  block: 'block',
+  soft: 'soft vote',
+  cert: 'cert vote',
+};
+
+/** One round's arrival delays per kind, ascending, ms after that kind's first node. A kind without data is empty. */
+export type WaveCurves = { round: number } & Record<CurveKind, number[]>;
+
+export function waveCurves(wave: Wave): WaveCurves {
+  const sorted = (by: Record<string, number> | undefined) => Object.values(by ?? {}).sort((a, b) => a - b);
+  return { round: wave.round, block: sorted(wave.delays), soft: sorted(wave.soft), cert: sorted(wave.cert) };
+}
+
+/** Share of the nodes (0..1) that have arrived `ms` after the first; `sorted` is ascending. */
+export function shareAt(sorted: number[], ms: number): number {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid]! <= ms) lo = mid + 1;
+    else hi = mid;
+  }
+  return sorted.length ? lo / sorted.length : 0;
+}
+
 /** Transaction kinds shown in the stacked chart, bottom to top. Colors: styles/stats.css --c1..--c5 */
 export const TX_KINDS = ['pay', 'axfer', 'appl', 'other', 'inner'] as const;
 export const TX_LABELS: Record<(typeof TX_KINDS)[number], string> = {

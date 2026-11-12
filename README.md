@@ -114,6 +114,9 @@ delay, so propagation is measured in milliseconds instead of polled.
 - **Block wave**: per relay, the delay of the winning proposal vote after its first arrival at any relay.
   It feeds the wavefront, the honeycomb flash and the propagation chart. Gossip delays are tens of
   milliseconds, so the wave is replayed slowed down (the key says by how much).
+- **Arrival curves** (under the globe): the share of timed relays that have the block, the soft vote and
+  the cert vote, each counted from its own first relay, replayed on the globe's clock over the last ten
+  rounds. Soft and cert are each relay's median vote delivery. Without avmonitor only the block curve shows.
 - **Soft and cert votes**: per relay, the median delivery relative to the fastest relay (shown on hover), and
   per round the time from the first vote to the median soft and cert vote.
 - Relays are matched by address, then host. Nodes avmonitor does not cover (archivers) keep polled figures
@@ -138,20 +141,20 @@ backend/src/
 frontend/src/
   state.ts               WebSocket feed + reducer
   stats.ts               TPS, block time, proposers, fleet summary
-  components/            Globe, HexWall, BlockRiver, Chart, Kpis, ProposerRing, Moments ...
+  components/            Globe, VoteCurves, HexWall, BlockRiver, Chart, Kpis, ProposerRing, Moments ...
 ```
 
 ## Message protocol
 
-| Type             | When                                                                          |
-| ---------------- | ----------------------------------------------------------------------------- |
-| `hello`          | On connect: config, boot log, all nodes, recent blocks, tip                   |
-| `boot` / `ready` | Discovery log lines while the backend starts                                  |
-| `nodes`          | Batched node changes (add / patch / remove) and the tip, at most every 250 ms |
-| `block`          | A new block's figures                                                         |
-| `block_patch`    | Propagation summary for a round, two rounds later                             |
-| `wave`           | A finished round's first node and every other node's delay after it           |
-| `log`            | Monitoring events                                                             |
+| Type             | When                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `hello`          | On connect: config, boot log, all nodes, recent blocks, tip                                        |
+| `boot` / `ready` | Discovery log lines while the backend starts                                                       |
+| `nodes`          | Batched node changes (add / patch / remove) and the tip, at most every 250 ms                      |
+| `block`          | A new block's figures                                                                              |
+| `block_patch`    | Propagation summary for a round, two rounds later                                                  |
+| `wave`           | A finished round's first node and every other node's delay after it (avmonitor: soft and cert too) |
+| `log`            | Monitoring events                                                                                  |
 
 ## Node status
 

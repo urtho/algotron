@@ -94,6 +94,9 @@ export interface Wave {
   origin: string;
   /** ms after the origin, by node id; the origin is 0 */
   delays: Record<string, number>;
+  /** avmonitor only: each relay's median soft / cert vote delivery, ms after the fastest relay, by node id */
+  soft?: Record<string, number>;
+  cert?: Record<string, number>;
   source: 'poll' | 'avmonitor';
 }
 

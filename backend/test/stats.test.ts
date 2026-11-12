@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test';
-import { summarize, topProposers, tpsSeries, txParts } from '../../frontend/src/stats.ts';
+import {
+  shareAt,
+  summarize,
+  topProposers,
+  tpsSeries,
+  txParts,
+  waveCurves,
+} from '../../frontend/src/stats.ts';
 import type { BlockStat } from '../../shared/types.ts';
 
 const block = (i: number, over: Partial<BlockStat> = {}): BlockStat => ({
@@ -41,4 +48,24 @@ test('summarize and topProposers', () => {
     ['BBB', 20],
     ['AAA', 10],
   ]);
+});
+
+test('waveCurves sorts each kind and leaves a missing kind empty', () => {
+  const c = waveCurves({
+    round: 7,
+    origin: 'a',
+    delays: { a: 0, b: 40, c: 12 },
+    soft: { a: 3, b: 0 },
+    source: 'avmonitor',
+  });
+  expect(c).toEqual({ round: 7, block: [0, 12, 40], soft: [0, 3], cert: [] });
+});
+
+test('shareAt counts the nodes that have arrived by a moment', () => {
+  const sorted = [0, 12, 40, 40];
+  expect(shareAt(sorted, -1)).toBe(0);
+  expect(shareAt(sorted, 0)).toBe(0.25);
+  expect(shareAt(sorted, 39.9)).toBe(0.5);
+  expect(shareAt(sorted, 40)).toBe(1);
+  expect(shareAt([], 10)).toBe(0);
 });
