@@ -78,21 +78,27 @@ function mapper(p: Plot, scale: CurveScale, c: WaveCurves, settle: number) {
   const w = p.x1 - p.x0;
   const zero = zeros(c);
   const m = scale.split ? settle : 1;
+  const x = (kind: CurveKind, ms: number) => {
+    const zoomed =
+      kind === 'block'
+        ? p.x0 + ((ms - zero.block) / scale.zoom) * w
+        : p.x0 + w / 3 + ((ms - zero.soft) / scale.zoom) * w;
+    const round = p.x0 + (ms / scale.round) * w;
+    return zoomed + (round - zoomed) * m;
+  };
   return {
     zero,
-    x: (kind: CurveKind, ms: number) => {
-      const zoomed =
-        kind === 'block'
-          ? p.x0 + ((ms - zero.block) / scale.zoom) * w
-          : p.x0 + w / 3 + ((ms - zero.soft) / scale.zoom) * w;
-      const round = p.x0 + (ms / scale.round) * w;
-      return zoomed + (round - zoomed) * m;
+    x,
+    /**
+     * While zoomed a curve stays inside its own axis. The proposal's late tail, cut at the break, comes
+     * back as the axes merge: the cut is a moment on the proposal's own clock that moves out to the end
+     * of the round, so the tail never shows on the votes' axis.
+     */
+    fence: (kind: CurveKind): [number, number] => {
+      if (kind !== 'block') return [p.x0 + (w / 3) * (1 - m), p.x1];
+      const edge = scale.zoom / 3 - (FENCE / w) * scale.zoom;
+      return [p.x0, x('block', zero.block + edge + (scale.round - edge) * m * m)];
     },
-    /** While zoomed a curve stays inside its own axis; the fence opens as the axes merge. */
-    fence: (kind: CurveKind): [number, number] =>
-      kind === 'block'
-        ? [p.x0, p.x0 + w / 3 - FENCE + ((w * 2) / 3 + FENCE) * m]
-        : [p.x0 + (w / 3) * (1 - m), p.x1],
   };
 }
 

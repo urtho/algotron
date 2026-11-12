@@ -225,9 +225,10 @@ function crosshair(f: Frame, hoverX: number | null) {
 }
 
 /**
- * Throughput and what it is made of, on one time axis and one baseline: TPS rises above the baseline as a
- * line, each block's transactions hang below it as a stacked column. Two measures, two scales, two plots:
- * they share only the baseline and the rounds.
+ * Throughput and what it is made of, in one plot over the same rounds. TPS is a line rising from the
+ * bottom edge (scale on the left); each block's transactions hang from the top edge as a stacked column
+ * (scale on the right, zero at the top). Each scale spans the full height, so the two cross when both
+ * are high: the opposite baselines keep them apart the rest of the time.
  */
 export function FlowChart(props: {
   rounds: number[];
@@ -244,11 +245,9 @@ export function FlowChart(props: {
   const tpsMax = niceMax(Math.max(0, ...tps));
   const txMax = niceMax(Math.max(1, ...totals));
   const geo = (f: Plot) => {
-    const base = Math.round(f.y0 + (f.y1 - f.y0) * 0.5);
     const slot = (f.x1 - f.x0) / Math.max(1, n);
-    return { base, slot, cx: (i: number) => f.x0 + slot * (i + 0.5) };
+    return { slot, cx: (i: number) => f.x0 + slot * (i + 0.5) };
   };
-  const unit = (v: number) => fmt1(v);
 
   return (
     <Canvas
@@ -256,22 +255,23 @@ export function FlowChart(props: {
       draw={(f, hoverX) => {
         const { ctx } = f;
         const g = geo(f);
-        level(f, f.y0, unit(tpsMax));
-        level(f, g.base, '0');
-        level(f, f.y1, String(Math.round(txMax)));
-        caption(f, 'TPS', f.y0 + 11);
-        caption(f, 'TXNS PER BLOCK', f.y1 - 5);
+        const height = f.y1 - f.y0;
+        level(f, f.y0, fmt1(tpsMax));
+        level(f, f.y1, '0');
+        // the transactions' scale reads on the right, upside down
+        ctx.textAlign = 'left';
+        ctx.fillText('0', f.x1 + 6, Math.round(f.y0) + 0.5);
+        ctx.fillText(String(Math.round(txMax)), f.x1 + 6, Math.round(f.y1) + 0.5);
         span(f, props.left);
 
         const hot = hoverX === null ? -1 : Math.max(0, Math.min(n - 1, Math.floor((hoverX - f.x0) / g.slot)));
         const bw = Math.max(1, Math.min(18, g.slot - (g.slot > 3 ? 2 : 1)));
-        const down = f.y1 - g.base - 1;
         parts.forEach((p, i) => {
-          let y = g.base + 1;
+          let y = f.y0 + 1;
           ctx.globalAlpha = hot === -1 || hot === i ? 1 : 0.45;
           p.forEach((v, k) => {
             if (v <= 0) return;
-            const h = (down * v) / txMax;
+            const h = (height * v) / txMax;
             ctx.fillStyle = colors[k]!;
             // 1px surface gap between segments (2px would swallow one-transaction segments)
             ctx.fillRect(g.cx(i) - bw / 2, y, bw, Math.max(1, h - 1));
@@ -280,19 +280,39 @@ export function FlowChart(props: {
         });
         ctx.globalAlpha = 1;
 
-        const up = g.base - f.y0;
-        const pts = tps.map((v, i): [number, number] => [g.cx(i), g.base - (up * v) / tpsMax]);
+        const pts = tps.map((v, i): [number, number] => [g.cx(i), f.y1 - (height * v) / tpsMax]);
         const end = line(f, pts, props.lineColor);
         if (end) {
-          ctx.lineTo(end[0], g.base);
-          ctx.lineTo(pts[0]![0], g.base);
+          ctx.lineTo(end[0], f.y1);
+          ctx.lineTo(pts[0]![0], f.y1);
           ctx.closePath();
           ctx.globalAlpha = 0.1;
           ctx.fillStyle = props.lineColor;
           ctx.fill();
           ctx.globalAlpha = 1;
-          endMark(f, end[0], end[1], props.lineColor, unit(tps[n - 1]!));
+          ctx.beginPath();
+          ctx.arc(end[0], end[1], 6, 0, Math.PI * 2);
+          ctx.fillStyle = INK.surface;
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(end[0], end[1], 4, 0, Math.PI * 2);
+          ctx.fillStyle = props.lineColor;
+          ctx.fill();
         }
+
+        caption(f, '▲ TPS', f.y1 - 5);
+        // the columns start at the top edge: their caption gets a patch of surface to stay readable over them
+        const text = 'TXNS PER BLOCK ▼';
+        ctx.font = FONT;
+        const tw = ctx.measureText(text).width;
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = INK.surface;
+        ctx.fillRect(f.x1 - tw - 8, f.y0 + 2, tw + 8, 13);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = INK.muted;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(text, f.x1 - 4, f.y0 + 12);
         crosshair(f, hot >= 0 ? g.cx(hot) : null);
       }}
       locate={(f, px) => {
@@ -303,7 +323,7 @@ export function FlowChart(props: {
           x: g.cx(i),
           title: `#${rounds[i]!.toLocaleString('en-US')} · ${totals[i]} txns`,
           rows: [
-            { color: props.lineColor, label: 'TPS', value: unit(tps[i] ?? 0) },
+            { color: props.lineColor, label: 'TPS', value: fmt1(tps[i] ?? 0) },
             ...parts[i]!.map((v, k) => ({ color: colors[k], label: names[k]!, value: String(v) })).filter(
               (r) => r.value !== '0',
             ),
