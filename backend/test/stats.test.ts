@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+  curvePlan,
   shareAt,
   summarize,
   topProposers,
@@ -68,4 +69,27 @@ test('shareAt counts the nodes that have arrived by a moment', () => {
   expect(shareAt(sorted, 39.9)).toBe(0.5);
   expect(shareAt(sorted, 40)).toBe(1);
   expect(shareAt([], 10)).toBe(0);
+});
+
+test('by address the curves come from the accounts and run on their own clock', () => {
+  const wave = {
+    round: 7,
+    origin: 'a',
+    delays: { a: 0, b: 40, c: 12 },
+    accounts: { block: [0, 90], soft: [0, 100, 200, 400], cert: [0, 50] },
+    source: 'avmonitor' as const,
+  };
+  expect(waveCurves(wave, 'address')).toEqual({
+    round: 7,
+    block: [0, 90],
+    soft: [0, 100, 200, 400],
+    cert: [0, 50],
+  });
+  // the slowest kind's 95th percentile (400 ms) lands 2 s in
+  expect(curvePlan(wave, 'address')).toMatchObject({ max: 400, slow: 5 });
+  expect(curvePlan(wave, 'node')).toMatchObject({ max: 40, slow: 50 });
+  // without account data the address view has nothing and the clock stays the globe's
+  const polled = { ...wave, accounts: undefined };
+  expect(waveCurves(polled, 'address').soft).toEqual([]);
+  expect(curvePlan(polled, 'address').max).toBe(40);
 });

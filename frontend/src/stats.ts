@@ -16,7 +16,11 @@ export function wavePlan(wave: Wave | undefined): WavePlan {
   const delays = Object.values(wave?.delays ?? {})
     .filter((d) => d > 0)
     .sort((a, b) => a - b);
-  const max = Math.max(10, delays[Math.floor(delays.length * 0.95)] ?? 1000);
+  return planFor(Math.max(10, delays[Math.floor(delays.length * 0.95)] ?? 1000));
+}
+
+/** A replay whose darkest step, `max` ms, lands WAVE_PLAY_MS in. */
+function planFor(max: number): WavePlan {
   const raw = WAVE_PLAY_MS / max;
   const slow = raw <= 1.2 ? 1 : Math.min(60, Math.round(raw));
   return { max, slow, at: (delay) => Math.min(delay, max * 1.3) * slow };
@@ -26,17 +30,37 @@ export function wavePlan(wave: Wave | undefined): WavePlan {
 export const CURVE_KINDS = ['block', 'soft', 'cert'] as const;
 export type CurveKind = (typeof CURVE_KINDS)[number];
 export const CURVE_LABELS: Record<CurveKind, string> = {
-  block: 'block',
+  block: 'proposal',
   soft: 'soft vote',
   cert: 'cert vote',
 };
 
-/** One round's arrival delays per kind, ascending, ms after that kind's first node. A kind without data is empty. */
+/** What one step of a curve is: a relay, or a voting account taken as if it were a node */
+export type CurveMode = 'node' | 'address';
+
+/** One round's arrival delays per kind, ascending, ms after that kind's first arrival. A kind without data is empty. */
 export type WaveCurves = { round: number } & Record<CurveKind, number[]>;
 
-export function waveCurves(wave: Wave): WaveCurves {
+export function waveCurves(wave: Wave, mode: CurveMode = 'node'): WaveCurves {
+  if (mode === 'address') {
+    return { round: wave.round, block: [], soft: [], cert: [], ...wave.accounts };
+  }
   const sorted = (by: Record<string, number> | undefined) => Object.values(by ?? {}).sort((a, b) => a - b);
   return { round: wave.round, block: sorted(wave.delays), soft: sorted(wave.soft), cert: sorted(wave.cert) };
+}
+
+/**
+ * Replay clock of the arrival curves. By node it is the globe's. Votes leave their accounts over a far
+ * longer stretch than they take to cross the relays, so by address the clock is the curves' own: the
+ * slowest kind's 95th-percentile account lands WAVE_PLAY_MS in.
+ */
+export function curvePlan(wave: Wave | undefined, mode: CurveMode): WavePlan {
+  if (mode === 'node' || !wave?.accounts) return wavePlan(wave);
+  const p95 = CURVE_KINDS.map((k) => {
+    const a = wave.accounts![k];
+    return a[Math.floor(a.length * 0.95)] ?? 0;
+  });
+  return planFor(Math.max(10, ...p95));
 }
 
 /** Share of the nodes (0..1) that have arrived `ms` after the first; `sorted` is ascending. */

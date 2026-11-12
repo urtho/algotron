@@ -114,9 +114,12 @@ delay, so propagation is measured in milliseconds instead of polled.
 - **Block wave**: per relay, the delay of the winning proposal vote after its first arrival at any relay.
   It feeds the wavefront, the honeycomb flash and the propagation chart. Gossip delays are tens of
   milliseconds, so the wave is replayed slowed down (the key says by how much).
-- **Arrival curves** (under the globe): the share of timed relays that have the block, the soft vote and
-  the cert vote, each counted from its own first relay, replayed on the globe's clock over the last ten
-  rounds. Soft and cert are each relay's median vote delivery. Without avmonitor only the block curve shows.
+- **Arrival curves** (under the globe): the share of timed relays that have the winning proposal, the soft
+  vote and the cert vote, each counted from its own first relay, replayed on the globe's clock over the last
+  ten rounds. Soft and cert are each relay's median vote delivery. Without avmonitor only the proposal curve
+  shows. The **by node / by address** switch redraws it with one step per voting account (for the proposal,
+  per proposer), as if each account were a node: when its vote first reached any relay, counted from the
+  first vote of that kind. Votes leave accounts over hundreds of ms, so that view has its own slower clock.
 - **Soft and cert votes**: per relay, the median delivery relative to the fastest relay (shown on hover), and
   per round the time from the first vote to the median soft and cert vote.
 - Relays are matched by address, then host. Nodes avmonitor does not cover (archivers) keep polled figures

@@ -3,19 +3,20 @@ import type { Wave } from '../../../shared/types.ts';
 import {
   CURVE_KINDS,
   CURVE_LABELS,
+  type CurveMode,
+  curvePlan,
   fmt,
   shareAt,
   type WaveCurves,
   type WavePlan,
   waveCurves,
-  wavePlan,
 } from '../stats.ts';
 import { ChartPanel } from './Chart.tsx';
 
 interface Props {
   /** Newest finished round, the one the globe replays */
   wave?: Wave;
-  /** Series colors for block, soft vote and cert vote */
+  /** Series colors for proposal, soft vote and cert vote */
   colors: string[];
 }
 
@@ -59,12 +60,18 @@ function tickStep(win: number, px: number): number {
   return [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].find((s) => s >= target) ?? 1000;
 }
 
+/** Below this many points a curve is drawn as steps: a slope between a handful of proposers would be made up */
+const STEP_BELOW = 20;
+
 /** Cumulative path, one point per node. The caller's clip cuts whatever lies past the window. */
 function trace(ctx: CanvasRenderingContext2D, sorted: number[], s: Scale) {
   const n = sorted.length;
   ctx.beginPath();
   ctx.moveTo(s.sx(sorted[0]!), s.sy(0));
-  for (let i = 0; i < n; i++) ctx.lineTo(s.sx(sorted[i]!), s.sy((i + 1) / n));
+  for (let i = 0; i < n; i++) {
+    if (n < STEP_BELOW) ctx.lineTo(s.sx(sorted[i]!), s.sy(i / n));
+    ctx.lineTo(s.sx(sorted[i]!), s.sy((i + 1) / n));
+  }
   ctx.lineTo(Math.max(s.x1, s.sx(sorted[n - 1]!)), s.sy(1));
 }
 
@@ -185,21 +192,44 @@ function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: Scene) {
   }
 }
 
+const MODES: { mode: CurveMode; label: string }[] = [
+  { mode: 'node', label: 'BY NODE' },
+  { mode: 'address', label: 'BY ADDRESS' },
+];
+const MODE_KEY = 'algotron.curves.mode';
+
+function savedMode(): CurveMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'address' ? 'address' : 'node';
+  } catch {
+    return 'node';
+  }
+}
+
+/** One finished round, ready to draw either way */
+type Round = Record<CurveMode, WaveCurves>;
+
 /**
- * Cumulative arrival of the newest finished round: the share of timed nodes that have the block, the soft
- * vote and the cert vote, each counted from its own first node. It replays on the globe's clock (the same
- * wavePlan), over a sheaf of the rounds before it. Soft and cert exist only with the avmonitor feed.
+ * Cumulative arrival of the newest finished round as three curves: the winning proposal, the soft vote and
+ * the cert vote, over a sheaf of the rounds before it.
+ *
+ * By node, a step is a relay and the clock is the globe's (the same wavePlan), each kind counted from its
+ * first relay. By address, a step is a voting account taken as if it were a node: when its vote first
+ * reached any relay, counted from the first vote of that kind (for the proposal, one step per proposer).
+ * That view has its own, slower clock. Votes exist only with the avmonitor feed.
  */
 export function VoteCurves({ wave, colors }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const live = useRef<{ cur?: WaveCurves; sheaf: WaveCurves[]; plan: WavePlan; born: number }>({
-    sheaf: [],
-    plan: wavePlan(undefined),
-    born: 0,
-  });
+  const [wanted, setWanted] = useState<CurveMode>(savedMode);
+  const live = useRef<{ cur?: Round; sheaf: Round[]; born: number }>({ sheaf: [], born: 0 });
+
+  // without account data (polled propagation) only the node view exists
+  const mode: CurveMode = wave?.accounts ? wanted : 'node';
+  const plan = curvePlan(wave, mode);
+  const win = plan.max * 1.3;
 
   useEffect(() => {
     const el = wrap.current;
@@ -214,65 +244,82 @@ export function VoteCurves({ wave, colors }: Props) {
   useEffect(() => {
     if (!wave) return;
     const l = live.current;
-    if (l.cur && l.cur.round !== wave.round) l.sheaf = [...l.sheaf, l.cur].slice(-SHEAF);
-    l.cur = waveCurves(wave);
-    l.plan = wavePlan(wave);
+    if (l.cur && l.cur.node.round !== wave.round) l.sheaf = [...l.sheaf, l.cur].slice(-SHEAF);
+    l.cur = { node: waveCurves(wave, 'node'), address: waveCurves(wave, 'address') };
     const still = document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches;
     l.born = still ? Number.NEGATIVE_INFINITY : performance.now();
   }, [wave?.round]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, size and hover; the sweep runs itself
+  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, mode, size and hover; the sweep runs itself
   useEffect(() => {
     const c = canvas.current;
     const l = live.current;
     if (!c || !l.cur || size.w < 80 || size.h < 60) return;
-    const cur = l.cur;
+    const cur = l.cur[mode];
+    const sheaf = l.sheaf.map((r) => r[mode]);
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(size.w * dpr);
     c.height = Math.round(size.h * dpr);
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const win = l.plan.max * 1.3;
     let raf = 0;
     const frame = (now: number) => {
-      const t = (now - l.born) / l.plan.slow;
+      const t = (now - l.born) / plan.slow;
       const sweeping = t < win;
-      paint(ctx, size.w, size.h, {
-        cur,
-        sheaf: l.sheaf,
-        plan: l.plan,
-        colors,
-        t: Math.min(t, win),
-        sweeping,
-        hoverX,
-      });
+      paint(ctx, size.w, size.h, { cur, sheaf, plan, colors, t: Math.min(t, win), sweeping, hoverX });
       if (sweeping) raf = requestAnimationFrame(frame);
     };
     frame(performance.now());
     return () => cancelAnimationFrame(raf);
-  }, [wave?.round, size.w, size.h, hoverX]);
+  }, [wave?.round, mode, size.w, size.h, hoverX]);
 
-  const cur = wave ? waveCurves(wave) : undefined;
+  const cur = wave ? waveCurves(wave, mode) : undefined;
   const kinds = CURVE_KINDS.map((kind, i) => ({ kind, color: colors[i]! })).filter(
     (k) => cur && cur[k.kind].length >= 2,
   );
-  const plan = wavePlan(wave);
-  const win = plan.max * 1.3;
   const hoverMs =
     hoverX === null
       ? null
       : Math.max(0, Math.min(win, ((hoverX - PAD.l) / Math.max(1, size.w - PAD.l - PAD.r)) * win));
+  const pick = (m: CurveMode) => {
+    setWanted(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      // the choice then lasts for this visit only
+    }
+  };
+  const speed = plan.slow > 1 ? `slowed ${plan.slow}×` : 'real speed';
 
   return (
     <div className="curves">
       <ChartPanel
         title="ARRIVAL CURVES"
         note={
-          wave?.source === 'avmonitor'
-            ? '% of timed relays · ms after first relay'
-            : '% of nodes · ms after first sighting'
+          mode === 'address'
+            ? `accounts · ms after first vote · ${speed}`
+            : wave?.source === 'avmonitor'
+              ? 'relays · ms after first relay'
+              : 'nodes · ms after first sighting'
         }
         legend={kinds.map((k) => ({ name: CURVE_LABELS[k.kind], color: k.color }))}
+        value={
+          wave?.accounts && (
+            <span className="seg">
+              {MODES.map((m) => (
+                <button
+                  key={m.mode}
+                  type="button"
+                  className={`seg-item${m.mode === mode ? ' seg-item--on' : ''}`}
+                  aria-pressed={m.mode === mode}
+                  onClick={() => pick(m.mode)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </span>
+          )
+        }
       >
         <div
           className="chart-canvas"
@@ -294,7 +341,9 @@ export function VoteCurves({ wave, colors }: Props) {
                 <div key={k.kind} className="chart-tip-row">
                   <span className="swatch" style={{ background: k.color }} />
                   <span className="chart-tip-label">{CURVE_LABELS[k.kind]}</span>
-                  <span className="chart-tip-value">{Math.round(shareAt(cur[k.kind], hoverMs) * 100)}%</span>
+                  <span className="chart-tip-value">
+                    {Math.round(shareAt(cur[k.kind], hoverMs) * 100)}% of {cur[k.kind].length}
+                  </span>
                 </div>
               ))}
             </div>

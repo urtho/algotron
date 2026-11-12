@@ -433,6 +433,7 @@ export class Monitor {
         delays: byNode,
         soft: votes('soft'),
         cert: votes('cert'),
+        accounts: { block: t.accounts.proposal, soft: t.accounts.soft, cert: t.accounts.cert },
         source: 'avmonitor',
       });
     }

@@ -185,6 +185,8 @@ export interface AvRoundTiming {
   /** ms from the round's first vote to the median relay's median soft / cert vote */
   softMs?: number;
   certMs?: number;
+  /** Per voting account: ms after the first vote of that kind to reach any relay, ascending */
+  accounts: { proposal: number[]; soft: number[]; cert: number[] };
 }
 
 const median = (xs: number[]) => {
@@ -240,6 +242,12 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
   const soft = p50(KIND.soft);
   const cert = p50(KIND.cert);
 
+  /** When each account's vote first reached any relay, counted from the earliest one */
+  const accounts = (kind: number) => {
+    const first = [...(section(kind)?.first ?? [])].filter((ms) => ms !== NONE).sort((a, b) => a - b);
+    return first.map((ms) => ms - first[0]!);
+  };
+
   return {
     round: r.round,
     partial: (r.flags & 2) !== 0,
@@ -252,6 +260,7 @@ export function summarizeRound(r: AvRound, dict: Map<number, AvRelayInfo>): AvRo
     })),
     softMs: median([...soft.abs.values()]),
     certMs: median([...cert.abs.values()]),
+    accounts: { proposal: accounts(KIND.proposal), soft: accounts(KIND.soft), cert: accounts(KIND.cert) },
   };
 }
 

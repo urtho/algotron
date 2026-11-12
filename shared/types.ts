@@ -97,6 +97,11 @@ export interface Wave {
   /** avmonitor only: each relay's median soft / cert vote delivery, ms after the fastest relay, by node id */
   soft?: Record<string, number>;
   cert?: Record<string, number>;
+  /**
+   * avmonitor only: one entry per voting account (for `block`, per proposer), ms from the first vote of
+   * that kind reaching any relay to this account's vote reaching any relay, ascending
+   */
+  accounts?: { block: number[]; soft: number[]; cert: number[] };
   source: 'poll' | 'avmonitor';
 }
 

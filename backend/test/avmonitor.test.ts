@@ -107,6 +107,8 @@ describe('summarizeRound', () => {
     expect(t.relays[1]).toMatchObject({ proposal: 31, soft: 25, cert: 45, err: 2 });
     expect(t.softMs).toBe(241);
     expect(t.certMs).toBe(950);
+    // one entry per voting account, counted from the first vote of its kind
+    expect(t.accounts).toEqual({ proposal: [0, 3], soft: [0, 3], cert: [0] });
   });
 
   test('without a matrix the first proposal vote of any proposer stands in', () => {

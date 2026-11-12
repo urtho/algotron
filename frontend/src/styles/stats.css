@@ -437,6 +437,35 @@
 .curves > .chart-panel {
   flex: 1;
 }
+/* two-way switch in a panel head */
+.seg {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.seg-item {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--border2);
+  padding: 1px 7px;
+  cursor: pointer;
+}
+.seg-item + .seg-item {
+  border-left: 0;
+}
+.seg-item:hover,
+.seg-item:focus-visible {
+  color: var(--cyan);
+  outline: none;
+}
+.seg-item--on,
+.seg-item--on:hover {
+  color: var(--bg);
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
 .curves-empty {
   position: absolute;
   inset: 0;
