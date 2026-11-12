@@ -57,7 +57,9 @@ const serve = (hostname: string): Bun.Server<undefined> =>
 
 // "::" listens on IPv4 and IPv6. Health checks that call "localhost" resolve it to ::1 first, so an
 // IPv4-only listener fails them. Where the kernel has IPv6 switched off, fall back to IPv4.
-let host = HOST;
+// HOST=0.0.0.0 means "every interface", and platforms such as Coolify inject exactly that, overriding the
+// image's own setting. "::" covers every IPv4 address as well, so it is used in its place.
+let host = HOST === '0.0.0.0' ? '::' : HOST;
 let server: Bun.Server<undefined>;
 try {
   server = serve(host);
