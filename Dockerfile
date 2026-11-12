@@ -11,10 +11,11 @@ RUN bun run build
 
 FROM oven/bun:1.4.3-alpine
 WORKDIR /app
-ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
+# HOST=:: listens on IPv4 and IPv6: platform health checks call "localhost", which resolves to ::1 first
+ENV NODE_ENV=production PORT=3001 HOST=::
 COPY --from=build /app/dist ./
 USER bun
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD wget -qO- http://127.0.0.1:${PORT}/health || exit 1
+  CMD wget -qO- http://localhost:${PORT}/health || exit 1
 CMD ["bun", "server.js"]
