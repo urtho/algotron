@@ -29,7 +29,7 @@ Version 2 adds realtime chain statistics:
   5 minutes without input (`?idle=0` disables that, `?idle=60` sets seconds); pointer movement or a key ends it
 - **Honeycomb wall**: one hex per node, fastest reply first (re-ranked once a minute so hexes stay put),
   flashing in the same replay as the globe; hover for detail
-- **Block river, proposer ring, moments**: blocks as stacked slabs, the current proposer on a ring, and a
+- **Proposer ring, moments**: the current proposer on a ring, and a
   banner for bursts, slow rounds and nodes that drop or recover
 - **Status**: synced / lagging / behind / no answer (with the reason), IPv6 reachability per host
 - **Boot terminal**: Encom-style discovery sequence on first load
@@ -141,7 +141,7 @@ backend/src/
 frontend/src/
   state.ts               WebSocket feed + reducer
   stats.ts               TPS, block time, proposers, fleet summary
-  components/            Globe, VoteCurves, HexWall, BlockRiver, Chart, Kpis, ProposerRing, Moments ...
+  components/            Globe, VoteCurves, HexWall, Chart, Kpis, ProposerRing, Moments ...
 ```
 
 ## Message protocol

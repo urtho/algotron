@@ -13,7 +13,6 @@ import {
   wavePlan,
 } from '../stats.ts';
 import { useWallMode } from '../wall.ts';
-import { BlockRiver } from './BlockRiver.tsx';
 import { ChartPanel, LineChart, StackChart } from './Chart.tsx';
 import { Globe } from './Globe.tsx';
 import { HexWall } from './HexWall.tsx';
@@ -36,7 +35,6 @@ const WINDOW = 10;
 export function Dashboard({ state }: { state: AppState }) {
   const { blocks, config, tip } = state;
   const nodes = useMemo(() => Object.values(state.nodes), [state.nodes]);
-  const labels = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.label])), [nodes]);
 
   const summary = useMemo(() => summarize(blocks), [blocks]);
   const fl = useMemo(() => fleet(nodes), [nodes]);
@@ -97,7 +95,6 @@ export function Dashboard({ state }: { state: AppState }) {
             />
           </div>
           <VoteCurves wave={state.wave} colors={C.kinds} />
-          <BlockRiver blocks={blocks} colors={C.kinds} explorer={config.explorer} labels={labels} />
         </div>
 
         <div className="dash-right">

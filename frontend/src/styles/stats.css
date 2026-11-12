@@ -448,26 +448,6 @@
   color: var(--ink-muted);
 }
 
-/* ── Block river (under the globe) ──────────────────────────────────────────── */
-.river {
-  flex-shrink: 0;
-  border-top: 2px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-.river-body {
-  position: relative;
-  height: 132px;
-  cursor: pointer;
-}
-.river-body canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
 /* ── Honeycomb wall ─────────────────────────────────────────────────────────── */
 .hexwall {
   display: flex;
