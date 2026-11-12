@@ -1,4 +1,26 @@
-import type { BlockStat, NodeState } from '../../shared/types.ts';
+import type { BlockStat, NodeState, Wave } from '../../shared/types.ts';
+
+/** Every replay is stretched (or left alone) so the 95th-percentile node lands this long after the first */
+export const WAVE_PLAY_MS = 2000;
+
+export interface WavePlan {
+  /** Delay drawn as the darkest step of the colour ramp: the 95th percentile, ms */
+  max: number;
+  /** Playback slowdown; 1 = real time */
+  slow: number;
+  /** When a node lights up in the replay, ms after it starts. Stragglers are capped so a replay ends. */
+  at: (delay: number) => number;
+}
+
+export function wavePlan(wave: Wave | undefined): WavePlan {
+  const delays = Object.values(wave?.delays ?? {})
+    .filter((d) => d > 0)
+    .sort((a, b) => a - b);
+  const max = Math.max(10, delays[Math.floor(delays.length * 0.95)] ?? 1000);
+  const raw = WAVE_PLAY_MS / max;
+  const slow = raw <= 1.2 ? 1 : Math.min(60, Math.round(raw));
+  return { max, slow, at: (delay) => Math.min(delay, max * 1.3) * slow };
+}
 
 /** Transaction kinds shown in the stacked chart, bottom to top. Colors: styles/stats.css --c1..--c5 */
 export const TX_KINDS = ['pay', 'axfer', 'appl', 'other', 'inner'] as const;

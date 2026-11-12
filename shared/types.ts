@@ -82,6 +82,21 @@ export interface BlockStat {
   certMs?: number;
 }
 
+/**
+ * How one finished round's block reached the nodes: the first node and every
+ * other node's delay after it. From avmonitor (winning proposal vote per
+ * relay, a few ms resolution) or from polling (when each node first served
+ * the block, about 100 ms resolution).
+ */
+export interface Wave {
+  round: number;
+  /** Node that had it first */
+  origin: string;
+  /** ms after the origin, by node id; the origin is 0 */
+  delays: Record<string, number>;
+  source: 'poll' | 'avmonitor';
+}
+
 export interface AppConfig {
   version: string;
   networkId: string;
@@ -108,6 +123,7 @@ export type ServerMessage =
       blocks: BlockStat[];
       tip: number;
       logs: LogLine[];
+      wave?: Wave;
     }
   | { type: 'boot'; line: string }
   | { type: 'ready' }
@@ -119,6 +135,7 @@ export type ServerMessage =
       remove?: string[];
       tip?: number;
     }
+  | { type: 'wave'; wave: Wave }
   | { type: 'block'; block: BlockStat }
   | { type: 'block_patch'; round: number; patch: Partial<BlockStat> }
   | ({ type: 'log' } & LogLine);

@@ -1,4 +1,4 @@
-import type { BlockStat, LogLine, NodeState, NodeStatus, ServerMessage } from '../../shared/types.ts';
+import type { BlockStat, LogLine, NodeState, NodeStatus, ServerMessage, Wave } from '../../shared/types.ts';
 import type { AvRoundTiming } from './avmonitor.ts';
 import { parseBlock, type RawBlock } from './blocks.ts';
 import { appConfig, BACKFILL_BLOCKS, FAST_POLL_MS, HISTORY_BLOCKS, POLL_MS } from './config.ts';
@@ -53,6 +53,8 @@ export class Monitor {
   bootLines: string[] = [];
   ready = false;
   private logs: LogLine[] = [];
+  /** The newest finished round's propagation, replayed by the globe and the wall */
+  private wave?: Wave;
 
   private rounds = new Map<number, RoundSeen>();
   private raw = new Map<number, RawBlock & { at: number }>();
@@ -88,6 +90,7 @@ export class Monitor {
       blocks: this.blocks,
       tip: this.tip,
       logs: this.logs.slice(-60),
+      wave: this.wave,
     };
   }
 
@@ -323,6 +326,18 @@ export class Monitor {
     const block = this.blocks.find((b) => b.round === round);
     if (block) Object.assign(block, patch);
     this.send({ type: 'block_patch', round, patch });
+    this.sendWave({
+      round,
+      origin: entry.first,
+      delays: Object.fromEntries([...entry.seen].map(([id, d]) => [id, Math.max(0, Math.round(d))])),
+      source: 'poll',
+    });
+  }
+
+  private sendWave(wave: Wave): void {
+    if (Object.keys(wave.delays).length < 2) return;
+    this.wave = wave;
+    this.send({ type: 'wave', wave });
   }
 
   // ─── avmonitor ─────────────────────────────────────────────────────────────
@@ -364,10 +379,14 @@ export class Monitor {
 
     const now = Date.now();
     const delays: number[] = [];
+    const byNode: Record<string, number> = {};
+    let origin: NodeState | undefined;
     for (const [node, d] of best) {
       const rt = this.rt.get(node.id);
       if (!rt || d.proposal === undefined) continue;
       delays.push(d.proposal);
+      byNode[node.id] = d.proposal;
+      if (!origin || d.proposal < byNode[origin.id]!) origin = node;
       if (t.partial) continue; // a partial round still draws, but does not move the averages
       const first = !this.avFresh(rt);
       rt.avAt = now;
@@ -395,6 +414,12 @@ export class Monitor {
     const block = this.blocks.find((b) => b.round === t.round);
     if (block) Object.assign(block, patch);
     this.send({ type: 'block_patch', round: t.round, patch });
+    if (origin) {
+      // delays are counted from the first relay that had the winning proposal vote
+      const t0 = byNode[origin.id]!;
+      for (const id in byNode) byNode[id] = byNode[id]! - t0;
+      this.sendWave({ round: t.round, origin: origin.id, delays: byNode, source: 'avmonitor' });
+    }
   }
 
   // ─── blocks ────────────────────────────────────────────────────────────────

@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { NodeState } from '../../../shared/types.ts';
+import type { NodeState, Wave } from '../../../shared/types.ts';
+import type { WavePlan } from '../stats.ts';
 import { NodeCard } from './NodeCard.tsx';
 
 const SQ3 = Math.sqrt(3);
-const RANK: Record<NodeState['status'], number> = {
+/** Troubled nodes sit at the end of the wall */
+const TROUBLE: Record<NodeState['status'], number> = {
   synced: 0,
-  lagging: 1,
-  unknown: 2,
-  behind: 3,
-  offline: 4,
+  lagging: 0,
+  unknown: 0,
+  behind: 1,
+  offline: 2,
 };
+/** How often the order of the wall is recomputed. Reply times drift on every poll; hexes must not shuffle. */
+const REORDER_MS = 60_000;
 
 /** Largest hex radius that fits `n` pointy-top hexes in w × h, and the column count that goes with it. */
 function layout(n: number, w: number, h: number) {
@@ -33,14 +37,8 @@ const hexPoints = (cx: number, cy: number, r: number) =>
  * troubled ones sit at the end. With every new block each hex flashes after
  * its usual propagation delay, so the wall ripples in the order blocks spread.
  */
-export function HexWall(props: {
-  nodes: NodeState[];
-  tipBlock: number;
-  round: number;
-  slow: number;
-  timedOnly: boolean;
-}) {
-  const { nodes, tipBlock, round, slow, timedOnly } = props;
+export function HexWall(props: { nodes: NodeState[]; tipBlock: number; wave?: Wave; plan: WavePlan }) {
+  const { nodes, tipBlock, wave, plan } = props;
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -53,15 +51,31 @@ export function HexWall(props: {
     return () => ro.disconnect();
   }, []);
 
-  const sorted = useMemo(
+  // Rank by reply time, but only re-rank once a minute or when a node appears or leaves.
+  const rank = useRef<{ at: number; ids: string; order: Map<string, number> }>({
+    at: 0,
+    ids: '',
+    order: new Map(),
+  });
+  const ids = useMemo(
     () =>
-      [...nodes].sort(
-        (a, b) =>
-          RANK[a.status] - RANK[b.status] ||
-          (a.rtt || 9e9) - (b.rtt || 9e9) ||
-          a.label.localeCompare(b.label),
-      ),
+      nodes
+        .map((n) => n.id)
+        .sort()
+        .join('|'),
     [nodes],
+  );
+  const settled = nodes.some((n) => n.rtt > 0);
+  if (ids !== rank.current.ids || (settled && Date.now() - rank.current.at > REORDER_MS)) {
+    const byRtt = [...nodes].sort(
+      (a, b) => (a.rtt || 9e9) - (b.rtt || 9e9) || a.label.localeCompare(b.label),
+    );
+    rank.current = { at: settled ? Date.now() : 0, ids, order: new Map(byRtt.map((n, i) => [n.id, i])) };
+  }
+  // Troubled nodes go to the end at once; everything else keeps its place until the next re-rank.
+  const sorted = [...nodes].sort(
+    (a, b) =>
+      TROUBLE[a.status] - TROUBLE[b.status] || rank.current.order.get(a.id)! - rank.current.order.get(b.id)!,
   );
 
   const pad = 10;
@@ -78,8 +92,9 @@ export function HexWall(props: {
       <header className="chart-head">
         <span className="panel-title">NETWORK HEALTH MONITORS</span>
         <span className="chart-note">
-          fastest reply first · flash = usual delay after a block is first seen
-          {slow > 1 ? ` (slowed ${slow}×)` : ''}
+          fastest reply first, re-ranked every minute · flash = block arrival
+          {wave ? ` in round #${wave.round.toLocaleString('en-US')}` : ''}
+          {plan.slow > 1 ? ` (slowed ${plan.slow}×)` : ''}
         </span>
         <span className="chart-legend">
           <span className="chart-legend-item">
@@ -116,12 +131,12 @@ export function HexWall(props: {
                   onPointerEnter={() => setHover({ id: n.id, x: cx, y: cy })}
                 >
                   <polygon points={pts} className="hex-cell" />
-                  {n.status === 'synced' && n.prop > 0 && (!timedOnly || n.soft !== undefined) && (
+                  {wave?.delays[n.id] !== undefined && (
                     <polygon
-                      key={round}
+                      key={wave.round}
                       points={pts}
                       className="hex-flash"
-                      style={{ animationDelay: `${Math.min(3000, Math.round(n.prop * slow))}ms` }}
+                      style={{ animationDelay: `${Math.round(plan.at(wave.delays[n.id]!))}ms` }}
                     />
                   )}
                   {r >= 17 && (

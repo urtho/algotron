@@ -4,23 +4,18 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import type { NodeState } from '../../../shared/types.ts';
+import type { NodeState, Wave } from '../../../shared/types.ts';
 import land from '../assets/land-110m.json';
 import { landDots } from '../landDots.ts';
+import { wavePlan } from '../stats.ts';
 import { algoLogo } from './algologo.tsx';
 
 interface Props {
   nodes: NodeState[];
-  /** Newest block and the node that showed it first: drawn as a ring and arcs to other nodes */
-  pulse?: { round: number; id: string };
+  /** Newest finished round: where the block was first and when it reached every other node */
+  wave?: Wave;
   /** Wall mode: the globe turns to face the node that showed each block first */
   follow?: boolean;
-  /** Delay drawn as the darkest step of the wavefront ramp, ms */
-  waveMax: number;
-  /** Playback slowdown of the wavefront (1 = real time) */
-  waveSlow: number;
-  /** Only nodes timed by avmonitor take part in the wave */
-  timedOnly: boolean;
 }
 
 /**
@@ -36,6 +31,8 @@ interface Fx {
   life: number;
   grow: number;
   opacity: number;
+  /** Arcs only: ms until the head of the arc reaches its node */
+  land?: number;
 }
 
 // GeoJSON geometry types we care about
@@ -76,11 +73,7 @@ const ARC_POINTS = 48;
 /** How long a node stays lit when the wavefront reaches it */
 const WAVE_HOLD_MS = 900;
 
-export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Props) {
-  const timedRef = useRef(timedOnly);
-  timedRef.current = timedOnly;
-  const waveCfg = useRef({ max: waveMax, slow: waveSlow });
-  waveCfg.current = { max: waveMax, slow: waveSlow };
+export function Globe({ nodes, wave, follow }: Props) {
   const followRef = useRef(false);
   followRef.current = !!follow;
   /** Rotation that brings the newest block's first node to the front */
@@ -94,8 +87,12 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
   const tooltipRef = useRef<HTMLDivElement>(null);
   const fxGroupRef = useRef<THREE.Group | null>(null);
   const fxRef = useRef<Fx[]>([]);
-  /** Wavefront: when the newest block was first seen (page clock) and each node's usual delay */
-  const waveRef = useRef<{ born: number; delay: Map<string, number> }>({ born: 0, delay: new Map() });
+  /** Replay in progress: its start (page clock), when each node lights up (ms after start) and its ramp position 0..1 */
+  const waveRef = useRef<{ born: number; at: Map<string, number>; tone: Map<string, number> }>({
+    born: 0,
+    at: new Map(),
+    tone: new Map(),
+  });
   const nodesRef = useRef<NodeState[]>(nodes);
   nodesRef.current = nodes;
 
@@ -204,31 +201,6 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
       globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), eqMat));
     }
 
-    // ── Scanning meridian ray ─────────────────────────────────────────────────
-    const TRAIL_COUNT = 10;
-    const TRAIL_SPREAD_DEG = 12;
-    const scanGroup = new THREE.Group();
-    globeGroup.add(scanGroup);
-
-    for (let i = 0; i < TRAIL_COUNT; i++) {
-      const t = i / (TRAIL_COUNT - 1);
-      const lngOffset = -t * TRAIL_SPREAD_DEG;
-      const opacity = (1 - t) ** 1.4 * 0.82;
-      if (opacity < 0.01) continue;
-
-      const pts: THREE.Vector3[] = [];
-      for (let lat = -87; lat <= 87; lat += 3) {
-        pts.push(latLngToVec3(lat, lngOffset, 1.004));
-      }
-
-      scanGroup.add(
-        new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity }),
-        ),
-      );
-    }
-
     // ── Node dots group ───────────────────────────────────────────────────────
     const dotsGroup = new THREE.Group();
     globeGroup.add(dotsGroup);
@@ -320,7 +292,7 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
     let bloomOn = FX !== '0' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.42, 0.5, 0.3));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.45, 0.35));
     composer.addPass(new OutputPass());
     let slowFrames = 0;
 
@@ -402,11 +374,9 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
     container.addEventListener('pointercancel', onPointerUp);
     container.addEventListener('pointerleave', onPointerLeave);
 
-    // ── Slow rotation & scan ──────────────────────────────────────────────────
+    // ── Slow rotation ──────────────────────────────────────────────────
     let lastTime = performance.now();
-    let scanAngle = 0;
     const _tempColor = new THREE.Color();
-    const _whiteColor = new THREE.Color(0xffffff);
     const _waveColor = new THREE.Color();
 
     const animate = () => {
@@ -437,39 +407,26 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
         }
       }
       logoGroup.rotation.y -= 0.8 * dt; // ~1 revolution per 7.9 s
-      scanAngle += ((2 * Math.PI) / 2.8) * dt; // one full revolution per 2.8 s
-      scanGroup.rotation.y = scanAngle;
 
-      // ── Scanner glow: brighten & enlarge nodes under the leading meridian ───
+      // ── Replay: a node lights up when the block reaches it, in one hue from light (early) to dark (late)
       for (const [dot, node] of nodeMapRef.current) {
-        // Node's angle in globeGroup x-z plane: lng=0 → angle 0, lng=90 → -π/2
-        const nodeAngle = -node.lng * (Math.PI / 180);
-        let diff = (((-scanAngle - nodeAngle) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        if (diff > Math.PI) diff -= 2 * Math.PI; // normalise to (-π, π]
-
-        const intensity = Math.max(0, 1 - Math.abs(diff + 0.18) / 0.22); // peak 0.18 rad behind leading edge
-        const baseHex = node.type === 'archiver' ? ARCHIVER_COLOR : STATUS_COLORS[node.status];
         const mat = (dot as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        _tempColor.set(baseHex);
-        mat.color.lerpColors(_tempColor, _whiteColor, intensity * 0.75);
-        let scale = 1 + intensity * 0.5;
-
-        // ── Wavefront: the node lights up at its usual delay after the block was first seen,
-        //    in one hue that runs from light (early) to dark (late)
-        const delay = waveRef.current.delay.get(node.id);
-        if (delay !== undefined) {
-          const since = now - waveRef.current.born - delay * waveCfg.current.slow;
+        mat.color.set(node.type === 'archiver' ? ARCHIVER_COLOR : STATUS_COLORS[node.status]);
+        let scale = 1;
+        const at = waveRef.current.at.get(node.id);
+        if (at !== undefined) {
+          const since = now - waveRef.current.born - at;
           if (since >= 0 && since < WAVE_HOLD_MS) {
             const k = 1 - since / WAVE_HOLD_MS;
-            _waveColor.setHSL(192 / 360, 0.9, 0.78 - Math.min(1, delay / waveCfg.current.max) * 0.46);
-            mat.color.lerp(_waveColor, Math.min(1, k * 1.6));
-            scale = Math.max(scale, 1 + k * 1.6);
+            _waveColor.setHSL(192 / 360, 0.95, 0.82 - waveRef.current.tone.get(node.id)! * 0.4);
+            mat.color.lerp(_waveColor, Math.min(1, k * 2));
+            scale = 1 + k ** 0.5 * 2.2;
           }
         }
         (dot as THREE.Mesh).scale.setScalar(scale);
       }
 
-      // ── Block pulses: rings and arcs fade out and are removed ────────────────
+      // ── Rings and arcs: an arc grows until its head lands, then everything fades and is removed ────────────────
       const fx = fxRef.current;
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i]!;
@@ -483,9 +440,15 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
           continue;
         }
         if (t < 0) continue;
-        mat.opacity = f.opacity * (1 - t) ** 1.5;
-        if (f.grow) f.obj.scale.setScalar(1 + f.grow * t);
-        else (f.obj as THREE.Line).geometry.setDrawRange(0, Math.ceil(ARC_POINTS * Math.min(1, t * 2.2)));
+        if (f.land !== undefined) {
+          const flown = Math.min(1, (now - f.born) / Math.max(1, f.land));
+          (f.obj as THREE.Line).geometry.setDrawRange(0, Math.ceil(ARC_POINTS * flown) + 1);
+          const after = (now - f.born - f.land) / (f.life - f.land);
+          mat.opacity = f.opacity * (after <= 0 ? 1 : (1 - after) ** 2);
+        } else {
+          mat.opacity = f.opacity * (1 - t) ** 1.5;
+          f.obj.scale.setScalar(1 + f.grow * t);
+        }
       }
 
       if (bloomOn) composer.render();
@@ -538,25 +501,27 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
   // Rebuild the meshes only when a node appears, moves or changes status
   const signature = useMemo(() => nodes.map((n) => `${n.id}:${n.status}:${n.lat}`).join('|'), [nodes]);
 
-  // ── New block: ring at the first node, arcs to the nodes that follow ─────────
+  const plan = useMemo(() => wavePlan(wave), [wave]);
+
+  // ── Replay of a finished round: a ring at the node that had the block first, one arc to every other
+  //    node timed to land when the block reached it, and a small ring where it lands. Arrival times are
+  //    measured; the arcs themselves are drawn straight from the origin because gossip paths are not known.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fires once per round
   useEffect(() => {
     const group = fxGroupRef.current;
-    if (!group || !pulse || document.hidden) return;
-    const all = nodesRef.current;
-    const origin = all.find((n) => n.id === pulse.id);
+    if (!group || !wave || document.hidden) return;
+    const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+    const origin = byId.get(wave.origin);
     if (!origin || (origin.lat === 0 && origin.lng === 0)) return;
     const now = performance.now();
-    waveRef.current = {
-      born: now,
-      delay: new Map(
-        all
-          .filter(
-            (n) => n.status === 'synced' && (!timedRef.current || n.soft !== undefined || n.id === origin.id),
-          )
-          .map((n) => [n.id, n.id === origin.id ? 0 : n.prop || 0]),
-      ),
-    };
+    const at = new Map<string, number>();
+    const tone = new Map<string, number>();
+    for (const [id, delay] of Object.entries(wave.delays)) {
+      at.set(id, plan.at(delay));
+      tone.set(id, Math.min(1, delay / plan.max));
+    }
+    waveRef.current = { born: now, at, tone };
+
     const from = latLngToVec3(origin.lat, origin.lng, 1.006);
     // rotation.y that puts the node on the camera's meridian, and a tilt toward its latitude
     aimRef.current = {
@@ -564,43 +529,42 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
       x: Math.max(-0.9, Math.min(0.9, (origin.lat * Math.PI) / 180)) * 0.85,
     };
 
-    for (const [delay, grow, opacity] of [
-      [0, 9, 0.9],
-      [180, 16, 0.5],
-    ] as const) {
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.012, 0.016, 48),
+    const ring = (
+      pos: THREE.Vector3,
+      color: THREE.ColorRepresentation,
+      born: number,
+      grow: number,
+      opacity: number,
+    ) => {
+      const mesh = new THREE.Mesh(
+        new THREE.RingGeometry(0.012, 0.016, 40),
         new THREE.MeshBasicMaterial({
-          color: 0xffffff,
+          color,
           transparent: true,
           opacity,
           side: THREE.DoubleSide,
           depthWrite: false,
         }),
       );
-      ring.position.copy(from);
-      ring.lookAt(from.clone().multiplyScalar(2));
-      group.add(ring);
-      fxRef.current.push({ obj: ring, born: now + delay, life: 1500, grow, opacity });
-    }
+      mesh.position.copy(pos);
+      mesh.lookAt(pos.clone().multiplyScalar(2));
+      group.add(mesh);
+      fxRef.current.push({ obj: mesh, born, life: 1400, grow, opacity });
+    };
+    ring(from, 0xffffff, now, 10, 0.9);
+    ring(from, 0xffffff, now + 200, 18, 0.5);
 
-    // arcs to the fastest followers, one per location
-    const seen = new Set<string>([`${origin.lat},${origin.lng}`]);
-    const targets = all
-      .filter((n) => n.status === 'synced' && (n.lat !== 0 || n.lng !== 0))
-      .sort((a, b) => (a.prop || 9e9) - (b.prop || 9e9))
-      .filter((n) => {
-        const k = `${n.lat},${n.lng}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      })
-      .slice(0, 14);
     const a = from.clone().normalize();
-    targets.forEach((n, i) => {
-      const b = latLngToVec3(n.lat, n.lng, 1).normalize();
+    const color = new THREE.Color();
+    for (const [id, land] of at) {
+      const n = byId.get(id);
+      if (!n || id === wave.origin || (n.lat === 0 && n.lng === 0)) continue;
+      color.setHSL(192 / 360, 0.95, 0.8 - tone.get(id)! * 0.4);
+      const end = latLngToVec3(n.lat, n.lng, 1.006);
+      ring(end, color.getHex(), now + land, 5, 0.85);
+      const b = end.clone().normalize();
       const angle = a.angleTo(b);
-      if (angle < 0.02) return;
+      if (angle < 0.02) continue; // same site as the origin: the landing ring is enough
       const pts: THREE.Vector3[] = [];
       for (let k = 0; k <= ARC_POINTS; k++) {
         const t = k / ARC_POINTS;
@@ -608,17 +572,22 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
           .clone()
           .multiplyScalar(Math.sin((1 - t) * angle))
           .addScaledVector(b, Math.sin(t * angle));
-        pts.push(p.normalize().multiplyScalar(1.006 + Math.sin(Math.PI * t) * Math.min(0.3, angle * 0.12)));
+        pts.push(p.normalize().multiplyScalar(1.006 + Math.sin(Math.PI * t) * Math.min(0.12, angle * 0.08)));
       }
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.75, depthWrite: false }),
+        new THREE.LineBasicMaterial({
+          color: color.getHex(),
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+        }),
       );
       line.geometry.setDrawRange(0, 0);
       group.add(line);
-      fxRef.current.push({ obj: line, born: now + i * 25, life: 1300 + angle * 300, grow: 0, opacity: 0.75 });
-    });
-  }, [pulse?.round]);
+      fxRef.current.push({ obj: line, born: now, life: land + 700, grow: 0, opacity: 0.8, land });
+    }
+  }, [wave?.round]);
 
   // ── Sync node dots when `nodes` changes ──────────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: signature stands for the node list
@@ -740,16 +709,23 @@ export function Globe({ nodes, pulse, follow, waveMax, waveSlow, timedOnly }: Pr
   return (
     <div className="globe-wrapper">
       <div className="globe-mount" ref={mountRef} />
-      <div className="wave-key">
-        <span>BLOCK ARRIVAL</span>
-        <span className="wave-ramp" />
-        <span className="wave-ends">
-          <span>first</span>
+      {wave && (
+        <div className="wave-key">
           <span>
-            +{Math.round(waveMax).toLocaleString('en-US')} ms{waveSlow > 1 ? ` · slowed ${waveSlow}×` : ''}
+            ROUND #{wave.round.toLocaleString('en-US')} · {wave.source === 'avmonitor' ? 'PROPOSAL' : 'BLOCK'}{' '}
+            ARRIVAL
           </span>
-        </span>
-      </div>
+          <span className="wave-ramp" />
+          <span className="wave-ends">
+            <span>first relay</span>
+            <span>+{Math.round(plan.max).toLocaleString('en-US')} ms</span>
+          </span>
+          <span>
+            {plan.slow > 1 ? `REPLAY SLOWED ${plan.slow}×` : 'REPLAY AT REAL SPEED'} · ARCS SHOW TIMING, NOT
+            ROUTES
+          </span>
+        </div>
+      )}
       <div ref={tooltipRef} className="globe-node-tooltip" style={{ display: 'none' }} />
     </div>
   );

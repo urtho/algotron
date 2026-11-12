@@ -17,14 +17,18 @@ Version 2 adds realtime chain statistics:
   block size, certificate votes, proposer payouts and top proposers, all decoded from the blocks the
   relays serve. No indexer, no algod API token
 - **Block propagation**: how long relays take to show a block after the first one does
-- **3D globe with a propagation wavefront**: each new block draws a ring at the first node, arcs to the
-  next ones, and lights every relay at its usual delay
+- **3D globe that replays every finished round**: a ring at the node that had the block first, one arc to every
+  other node timed to land when the block reached it, and a flash where it lands, light for early and dark
+  for late. Each replay is stretched to about two seconds; the key shows the round, the real time scale and
+  the slowdown. Arrival times are measured; the arcs are drawn straight from the origin because gossip routes
+  are not known
 - **Dot-matrix land, bloom and an atmosphere rim** on the globe. Bloom switches itself off on a display that
   cannot hold about 25 frames per second (`?fx=1` forces it on, `?fx=0` off)
 - **Wall mode** for an unattended screen: the globe turns to face the relay that showed each block first and
   the panels take the stage in turn. Starts from the top-bar button, with `#wall` in the address, or after
   5 minutes without input (`?idle=0` disables that, `?idle=60` sets seconds); pointer movement or a key ends it
-- **Honeycomb wall**: one hex per node, fastest reply first, rippling in propagation order; hover for detail
+- **Honeycomb wall**: one hex per node, fastest reply first (re-ranked once a minute so hexes stay put),
+  flashing in the same replay as the globe; hover for detail
 - **Block river, proposer ring, moments**: blocks as stacked slabs, the current proposer on a ring, and a
   banner for bursts, slow rounds and nodes that drop or recover
 - **Status**: synced / lagging / behind / no answer (with the reason), IPv6 reachability per host
@@ -114,7 +118,8 @@ delay, so propagation is measured in milliseconds instead of polled.
   per round the time from the first vote to the median soft and cert vote.
 - Relays are matched by address, then host. Nodes avmonitor does not cover (archivers) keep polled figures
   and stay out of the wave. If the feed stops for 20 s, polling takes over again.
-- Rounds arrive `delay_rounds` late, so the wave shows each relay's usual delay, not the current block's.
+- Rounds arrive `delay_rounds` late (about 6 s), and each one is replayed with its own measured delays,
+  starting at the relay that had the winning proposal vote first.
 
 Until the avmonitor v2 server exists, `bun backend/test/avmock.ts http://127.0.0.1:3001` serves made-up
 timings in the real wire format for development.
@@ -145,6 +150,7 @@ frontend/src/
 | `nodes`          | Batched node changes (add / patch / remove) and the tip, at most every 250 ms |
 | `block`          | A new block's figures                                                         |
 | `block_patch`    | Propagation summary for a round, two rounds later                             |
+| `wave`           | A finished round's first node and every other node's delay after it           |
 | `log`            | Monitoring events                                                             |
 
 ## Node status

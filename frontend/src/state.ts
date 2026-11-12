@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import type { AppConfig, BlockStat, LogLine, NodeState, ServerMessage } from '../../shared/types.ts';
+import type { AppConfig, BlockStat, LogLine, NodeState, ServerMessage, Wave } from '../../shared/types.ts';
 
 export interface LogEntry extends LogLine {
   id: number;
@@ -17,6 +17,8 @@ export interface AppState {
   /** Browser clock when the tip last moved */
   tipAt: number;
   logs: LogEntry[];
+  /** Newest finished round's propagation, replayed on the globe and the wall */
+  wave?: Wave;
 }
 
 type Action = { type: 'open' } | { type: 'close' } | { type: 'msg'; msg: ServerMessage };
@@ -69,6 +71,7 @@ function reducer(state: AppState, action: Action): AppState {
         tip: msg.tip,
         tipAt: Date.now(),
         logs: msg.logs.map(entry),
+        wave: msg.wave,
       };
     case 'boot':
       return { ...state, bootLines: [...state.bootLines, msg.line] };
@@ -85,6 +88,8 @@ function reducer(state: AppState, action: Action): AppState {
       const moved = msg.tip !== undefined && msg.tip !== state.tip;
       return { ...state, nodes, tip: msg.tip ?? state.tip, tipAt: moved ? Date.now() : state.tipAt };
     }
+    case 'wave':
+      return { ...state, wave: msg.wave };
     case 'block':
       return { ...state, blocks: insertBlock(state.blocks, msg.block) };
     case 'block_patch':

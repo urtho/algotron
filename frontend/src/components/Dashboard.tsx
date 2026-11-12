@@ -10,6 +10,7 @@ import {
   topProposers,
   tpsSeries,
   txParts,
+  wavePlan,
 } from '../stats.ts';
 import { useWallMode } from '../wall.ts';
 import { BlockRiver } from './BlockRiver.tsx';
@@ -48,20 +49,9 @@ export function Dashboard({ state }: { state: AppState }) {
   const timed = useMemo(() => blocks.filter((b) => b.p50 !== undefined).slice(-120), [blocks]);
 
   const newest = blocks[blocks.length - 1];
-  const pulse = newest?.first ? { round: newest.round, id: newest.first } : undefined;
   const wall = useWallMode();
   const av = config.propSource === 'avmonitor';
-  // With avmonitor only the relays it times take part in the wave: polled and gossip delays do not mix.
-  // The wave is drawn against the slowest usual delay (95th percentile). Gossip delays are tens of
-  // milliseconds, too fast to see, so with avmonitor the playback is slowed until the wave takes ~1.5 s.
-  const wave = useMemo(() => {
-    const props = nodes
-      .filter((n) => n.status === 'synced' && n.prop > 0 && (!av || n.soft !== undefined))
-      .map((n) => n.prop)
-      .sort((a, b) => a - b);
-    const max = Math.max(20, props[Math.floor(props.length * 0.95)] ?? 1200);
-    return { max, slow: av ? Math.max(1, Math.min(20, Math.round(1500 / max))) : 1 };
-  }, [nodes, av]);
+  const plan = useMemo(() => wavePlan(state.wave), [state.wave]);
   const ago = (n: number) => `−${fmt.int((n * (summary.blockTime || 2.8)) / 60)} min`;
 
   return (
@@ -96,14 +86,7 @@ export function Dashboard({ state }: { state: AppState }) {
       <div className="dash-main">
         <div className="dash-left">
           <div className="globe-cell">
-            <Globe
-              nodes={nodes}
-              pulse={pulse}
-              follow={wall.on}
-              waveMax={wave.max}
-              waveSlow={wave.slow}
-              timedOnly={av}
-            />
+            <Globe nodes={nodes} wave={state.wave} follow={wall.on} />
             <Moments
               tps={tps}
               logs={state.logs}
@@ -171,7 +154,7 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-stack">
-            <HexWall nodes={nodes} tipBlock={tip} round={pulse?.round ?? 0} slow={wave.slow} timedOnly={av} />
+            <HexWall nodes={nodes} tipBlock={tip} wave={state.wave} plan={plan} />
           </div>
 
           <div className="dash-bottom">
