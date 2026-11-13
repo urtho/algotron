@@ -186,6 +186,20 @@ export interface RankSnapshot {
   release?: { version: string; started: string; medal_season: string } | null;
   /** Oldest first; the last one is the running season */
   seasons: RankSeason[];
+  /** Keys for proving that one runs a node; absent in a snapshot from before they existed */
+  own?: RankOwn;
+}
+
+/**
+ * A public key per node ID (Ed25519, base64url). The private key is argon2id of the first 8 characters of the
+ * node's telemetry GUID, salt `algotron-own-v1:<id>`, one lane, `mem` KiB and `passes` passes, 32 bytes out: whoever
+ * knows those 8 characters can derive it on their own device and sign with it.
+ */
+export interface RankOwn {
+  v: 1;
+  mem: number;
+  passes: number;
+  keys: Record<string, string>;
 }
 
 export interface RankSeason {

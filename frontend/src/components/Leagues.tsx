@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import type { RankCell, RankNode } from '../../../shared/types.ts';
 import { type MyVotes, useMyVotes } from '../avstream.ts';
 import { MAX_ADDRS, parseAddresses, mine as pins, useMine } from '../mine.ts';
+import { statementFromHash } from '../own.ts';
 import { BAND_TEXT, band, findNode, parseQuery, tenureText, tenureYears } from '../rank.ts';
 import { fmt } from '../stats.ts';
 import { useRank } from '../useRank.ts';
+import { NodeCats, Prove, Verify } from './Own.tsx';
 import '../styles/leagues.css';
 
 const MEDAL = ['', 'GOLD', 'SILVER', 'BRONZE'];
@@ -267,6 +269,14 @@ export function Leagues({ votes }: { votes: boolean }) {
             here is not sent.
           </p>
           {note && <p className="lg-note">{note}</p>}
+          {snap.own && mine.length > 0 && (
+            <p className="lg-private">
+              To show others that a pinned node is yours, give the first 8 characters of its telemetry GUID.
+              This device turns them into the node's key and compares it with the one in the ranking file;
+              with the key you can sign a line that anyone can check. The 8 characters and the key stay on
+              this device.
+            </p>
+          )}
           {votes && mine.length > 0 && (
             <p className="lg-private">
               Optional: add the accounts a pinned node votes with, and the monitor marks their votes on the
@@ -290,25 +300,8 @@ export function Leagues({ votes }: { votes: boolean }) {
                   FORGET
                 </button>
               </div>
-              {node && (
-                <div className="lg-mine-cats">
-                  {cats.map((c) => {
-                    const cell = node.c[c.id];
-                    return (
-                      <div
-                        key={c.id}
-                        className={`lg-mine-cat${cell ? ` lg-band-${band(cell[0], cell[1])}` : ''}`}
-                      >
-                        <span className="lg-mine-label">{c.name}</span>
-                        <span className="lg-mine-rank">
-                          {cell ? `${cell[0]} / ${cell[1]}` : 'not enough data'}
-                        </span>
-                        {cell && <span className="lg-dim">{BAND_TEXT[band(cell[0], cell[1])]}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {node && <NodeCats node={node} cats={cats} />}
+              {node && snap.own?.keys[id] && <Prove id={id} own={snap.own} />}
               {votes && <Addresses id={id} list={me.addrs[id] ?? []} feed={feed} />}
             </div>
           ))}
@@ -420,14 +413,28 @@ export function Leagues({ votes }: { votes: boolean }) {
 const count = (season: { nodes: RankNode[] } | undefined, league: string) =>
   season ? season.nodes.filter((n) => n.league === league).length : 0;
 
-function Top() {
+export function Top({ sub = 'LEAGUES' }: { sub?: string }) {
   return (
     <header className="topbar lg-top">
       <span className="brand-title">ALGOTRON</span>
-      <span className="brand-subtitle">LEAGUES</span>
+      <span className="brand-subtitle">{sub}</span>
       <nav className="topbar-nav" aria-label="Views">
+        {sub !== 'LEAGUES' && <a href="#leagues">LEAGUES</a>}
         <a href="#">← NETWORK MONITOR</a>
       </nav>
     </header>
+  );
+}
+
+/** The page behind a statement link (#verify/…): a line signed with a node's key, checked on this device */
+export function VerifyPage({ hash }: { hash: string }) {
+  const statement = useMemo(() => statementFromHash(hash), [hash]);
+  return (
+    <div className="lg">
+      <Top sub="VERIFY" />
+      <div className="lg-body">
+        <Verify statement={statement} />
+      </div>
+    </div>
   );
 }

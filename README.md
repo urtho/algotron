@@ -112,6 +112,19 @@ category. The ranking is computed elsewhere and POSTed to `/api/rank/ingest` as 
 (telemetry GUID, its last 12 characters, or an `@alias`) and remembered in `localStorage` only, so no request ever
 names a node. `#leagues/<12 characters>` opens on a node; the fragment is not sent to the server either.
 
+**Proving a node is yours.** When the snapshot carries `own` (a public key per node), a pinned node gets
+"prove it's yours": the visitor types the first 8 characters of the node's telemetry GUID, of which the ranking
+shows only the last 12. The page turns them into the node's signing key (argon2id, salt `algotron-own-v1:<id>`,
+cost from the snapshot: about half a second on a desktop, more on a phone; then Ed25519) and compares its public
+half with the snapshot's. With the key the visitor signs one line (a handle, a text someone asked for) and gets a
+link, `#verify/<statement>`; whoever opens it checks the signature in their own browser against the same snapshot
+and sees the node's places. No account is involved, and neither the 8 characters, the key nor the statement is
+ever sent to the server (the statement travels in the fragment). The key is not stored: it is gone when the page
+closes. What a valid statement shows is knowledge of the GUID's first 8 characters, no more: relays a node
+connects to receive the whole GUID, and 8 characters can be guessed by brute force at a cost (one guess costs
+one slow hash). Code: `frontend/src/own.ts`; the publisher derives the same keys with `node:crypto`, and
+`backend/test/own.test.ts` holds a fixed vector for both.
+
 **Your own votes.** The ranking does not say which accounts a node votes with, so a pinned node takes an optional
 list of voting addresses, kept in `localStorage` like the pins. While there is at least one, the page opens
 avmonitor's public stream itself (`AVMONITOR_PUBLIC_URL`, `/v2/stream?level=summary&fmt=bin`, about 1.6 KB/s): it

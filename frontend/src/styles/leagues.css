@@ -194,6 +194,61 @@
 .lg-addr-seen {
   color: var(--green);
 }
+.lg-own {
+  margin-top: 12px;
+}
+.lg-own label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+}
+.lg-own form button:disabled,
+.lg-own input:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.lg-own-ok {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--green);
+}
+.lg-own-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+.lg-own-link input {
+  font-size: 11px;
+  color: var(--dim);
+}
+.lg-mine-rank .lg-medal {
+  margin-right: 6px;
+}
+.lg-verify input,
+.lg-verify a {
+  color: var(--cyan);
+}
+.lg-verify .lg-private {
+  margin-top: 14px;
+}
+.lg-verify-ok {
+  margin: 14px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--green);
+}
+.lg-verify-says {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--green);
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 .lg-mine-cat.lg-band-1 {
   border-left-color: var(--green);
 }
