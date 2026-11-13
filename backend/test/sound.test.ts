@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { reach, regionOf, soundRound, steps } from '../../frontend/src/sound.ts';
+import { grid, reach, regionOf, soundRound, steps } from '../../frontend/src/sound.ts';
 import { wavePlan } from '../../frontend/src/stats.ts';
 import type { NodeState, Wave } from '../../shared/types.ts';
 
@@ -51,6 +51,8 @@ test('soundRound takes the wall replay clock, the place on the wall and the map 
   expect(r.hits[2]!.pan).toBeCloseTo(104 / 180);
   expect(r.origin).toBe('na');
   expect(r.nodes).toBe(4);
+  // the replay clock stretches every round to the same length; the real spread travels beside it
+  expect(r.spread).toBe(plan.max);
 });
 
 test('steps counts arrivals per sixteenth and reach finds when a share has the block', () => {
@@ -64,4 +66,31 @@ test('steps counts arrivals per sixteenth and reach finds when a share has the b
   expect(reach(hits, 0.5)).toBe(1.4);
   expect(reach(hits, 0.5, 'eu')).toBe(1.4);
   expect(reach(hits, 0.5, 'as')).toBeNull();
+});
+
+test('grid cuts a bar into any number of steps: arrivals, stereo place, leading region and share reached', () => {
+  const hit = (at: number, pan: number, region: 'eu' | 'na' | 'as') => ({ at, pan, rank: 0, region });
+  const round = {
+    round: 1,
+    hits: [hit(0, -0.4, 'na'), hit(0.05, 0.2, 'eu'), hit(0.1, 0.2, 'eu'), hit(1.4, 0.6, 'as')],
+    origin: 'na' as const,
+    nodes: 4,
+    spread: 300,
+  };
+  const g = grid(round, 2.4, 24);
+  expect(g.counts.length).toBe(24);
+  expect(g.counts[0]).toBe(2);
+  expect(g.counts[1]).toBe(1);
+  expect(g.counts[14]).toBe(1);
+  expect(g.most).toBe(2);
+  expect(g.pans[0]).toBeCloseTo(-0.1);
+  expect(g.lead[1]).toBe('eu');
+  expect(g.lead[14]).toBe('as');
+  expect(g.lead[2]).toBeUndefined();
+  expect(g.share[0]).toBe(0.5);
+  expect(g.share[13]).toBe(0.75);
+  expect(g.share[23]).toBe(1);
+  // no round at the bar line: nothing arrives and nothing is reached
+  expect(grid(undefined, 2.4, 24).share[23]).toBe(0);
+  expect(steps(round.hits, 2.4, 32)[18]).toBe(1);
 });

@@ -131,8 +131,8 @@ delay, so propagation is measured in milliseconds instead of polled.
   address** switch redraws it with one step per voting account (for the proposal, per proposer), as if each
   account were a node: when its vote first reached any relay.
 - **Sound** (switch to the right of the hexes, off by default, with a volume slider): the wall as droplets, kalimba, a glass
-  arpeggio, techno or an orchestra by continent, synthesised in the browser from the same arrivals the
-  hexes flash. Droplets, kalimba and the orchestra sound with the flashes; the arpeggio and techno keep a
+  arpeggio or techno, synthesised in the browser from the same arrivals the hexes flash. Droplets and
+  kalimba sound with the flashes (at most five kalimba plucks ring at once); the arpeggio and techno keep a
   steady bar of one block time and pick up the newest round at each bar line.
 - **Vote boxes** (right column, bottom): for proposals, soft votes and cert votes, one box per round over the last 45
   rounds (whisker 5–95%, box 25–75%, tick at the median) of when the votes first reached any relay, and a
