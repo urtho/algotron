@@ -18,10 +18,6 @@
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-.topbar-nav .topbar-nav-own {
-  color: var(--cyan);
-  border-color: var(--cyan);
-}
 .lg-wait {
   padding: 80px 16px;
   text-align: center;

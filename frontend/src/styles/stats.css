@@ -103,6 +103,102 @@
   border-color: var(--cyan);
   outline: none;
 }
+/* The way into the validator leagues: a light-cycle trail runs round its frame and a glint crosses the text. */
+@property --trail {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.topbar-nav .topbar-nav-own {
+  position: relative;
+  padding: 4px 12px;
+  color: #d9f7ff;
+  letter-spacing: 0.22em;
+  border: 0;
+  background: linear-gradient(90deg, rgba(0, 204, 255, 0.16), rgba(0, 204, 255, 0.03));
+  box-shadow:
+    inset 0 0 0 1px var(--border2),
+    0 0 10px rgba(0, 204, 255, 0.25);
+  text-shadow:
+    0 0 6px var(--cyan),
+    0 0 16px rgba(0, 204, 255, 0.7);
+  overflow: hidden;
+  animation: leagues-pulse 3.2s ease-in-out infinite;
+}
+/* the trail: a bright head with a fading tail, drawn only on the 1px frame */
+.topbar-nav .topbar-nav-own::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--trail),
+    transparent 0deg 200deg,
+    rgba(0, 204, 255, 0.15) 230deg,
+    var(--cyan) 325deg,
+    #ffffff 352deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: leagues-trail 2.6s linear infinite;
+  pointer-events: none;
+}
+/* the glint */
+.topbar-nav .topbar-nav-own::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 30%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: leagues-glint 5.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.topbar-nav .topbar-nav-own:hover,
+.topbar-nav .topbar-nav-own:focus-visible {
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px var(--cyan),
+    0 0 18px rgba(0, 204, 255, 0.6);
+}
+@keyframes leagues-trail {
+  to {
+    --trail: 360deg;
+  }
+}
+@keyframes leagues-pulse {
+  50% {
+    box-shadow:
+      inset 0 0 0 1px var(--border2),
+      0 0 18px rgba(0, 204, 255, 0.5);
+  }
+}
+@keyframes leagues-glint {
+  0%,
+  62% {
+    left: -40%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar-nav .topbar-nav-own,
+  .topbar-nav .topbar-nav-own::before,
+  .topbar-nav .topbar-nav-own::after {
+    animation: none;
+  }
+  .topbar-nav .topbar-nav-own::after {
+    display: none;
+  }
+}
 .brand-title {
   font-size: 18px;
   color: var(--cyan);
