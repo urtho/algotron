@@ -207,6 +207,13 @@
   opacity: 0.6;
   cursor: wait;
 }
+.lg-own code {
+  font: inherit;
+  color: var(--text);
+}
+.lg-own-local {
+  margin-top: 4px;
+}
 .lg-own-ok {
   margin: 0 0 8px;
   font-size: 11px;

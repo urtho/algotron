@@ -112,11 +112,24 @@ export function Prove({ id, own }: { id: string; own: RankOwn }) {
             spellCheck={false}
             disabled={busy}
           />
-          <button type="submit" disabled={busy}>
+          <button
+            type="submit"
+            disabled={busy}
+            title="Checked on this device. Nothing is sent, and it does not reveal who you are."
+          >
             {busy ? 'CHECKING…' : 'CHECK'}
           </button>
         </form>
         {note && <p className="lg-note">{note}</p>}
+        <p className="lg-private">
+          Where to find the GUID: on the node, run <code>diagcfg telemetry status</code> (add <code>-d</code>{' '}
+          and the data directory if it asks), or read <code>GUID</code> in <code>logging.config</code> in the
+          data directory. The 8 characters are the part before the first dash.
+        </p>
+        <p className="lg-private lg-own-local">
+          CHECK runs on this device. Nothing you type is sent, so it does not reveal who you are or which node
+          you looked at.
+        </p>
       </div>
     );
   }
