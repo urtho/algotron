@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Wave } from '../../../shared/types.ts';
+import type { MyMark, MyRound } from '../avstream.ts';
 import {
   CURVE_KINDS,
   CURVE_LABELS,
@@ -14,13 +15,15 @@ import {
   type WaveCurves,
   waveCurves,
 } from '../stats.ts';
-import { ChartPanel } from './Chart.tsx';
+import { ChartPanel, MINE, mineDot } from './Chart.tsx';
 
 interface Props {
   /** Newest finished round, the one the globe replays */
   wave?: Wave;
   /** Series colors for proposal, soft vote and cert vote */
   colors: string[];
+  /** The visitor's own votes, by round: marked on the curves by address */
+  mine?: Map<number, MyRound>;
 }
 
 /** Ink and chrome for canvas drawing; kept in step with Chart.tsx and styles/app.css */
@@ -112,6 +115,16 @@ export interface Scene {
   settle: number;
   drawing: boolean;
   hoverX: number | null;
+  /** The visitor's votes in the round being drawn (by address only) */
+  marks?: MyRound;
+}
+
+/**
+ * Height of one of the visitor's votes on its curve, as a share. The stream orders a kind's votes the way
+ * the curve does, so the vote's place is its step; if the two disagree on the count, the time decides.
+ */
+export function markShare(vals: number[], m: Pick<MyMark, 'ms' | 'place' | 'of'>): number {
+  return m.of === vals.length ? m.place / vals.length : shareAt(vals, m.ms);
 }
 
 function curves(
@@ -286,6 +299,20 @@ export function paint(ctx: CanvasRenderingContext2D, w: number, h: number, sc: S
     ctx.fillText(text, x + (kind === 'soft' ? -5 : 5), p.sy(0.12) + (kind === 'soft' ? 0 : 13));
   });
 
+  // the visitor's own votes: a dot where each one joined its curve, shown once the drawing has reached it
+  if (sc.marks) {
+    for (const kind of CURVE_KINDS) {
+      const vals = sc.cur[kind];
+      if (vals.length < 2) continue;
+      const [left, right] = map.fence(kind);
+      for (const m of sc.marks[kind]) {
+        const x = map.x(kind, m.ms);
+        if (m.ms - map.zero[kind] > sc.tau || x < left - 2 || x > right + 2) continue;
+        mineDot(ctx, x, p.sy(markShare(vals, m)), m.win);
+      }
+    }
+  }
+
   if (sc.hoverX !== null && !sc.drawing && settle === 1) {
     const x = Math.round(Math.max(p.x0, Math.min(p.x1, sc.hoverX))) + 0.5;
     ctx.strokeStyle = INK.muted;
@@ -326,8 +353,11 @@ type Round = Record<CurveMode, WaveCurves>;
  *
  * By relay, a step is a relay. By address, a step is a voting account taken as if it were a node: when its
  * vote first reached any relay (for the proposal, one step per proposer). Votes exist only with avmonitor.
+ *
+ * By address, a visitor who gave voting addresses for a pinned node sees a dot on each curve where their
+ * own vote joined it, and a ring round a proposal of theirs that won the round.
  */
-export function VoteCurves({ wave, colors }: Props) {
+export function VoteCurves({ wave, colors, mine }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -359,8 +389,13 @@ export function VoteCurves({ wave, colors }: Props) {
   }, [wave?.round]);
 
   const cur = wave ? waveCurves(wave, mode) : undefined;
+  const marks = mode === 'address' && wave ? mine?.get(wave.round) : undefined;
+  // the visitor's votes come on their own connection and may arrive after the round started drawing
+  const marksKey = marks
+    ? `${marks.round}:${marks.block.length}:${marks.soft.length}:${marks.cert.length}`
+    : '';
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, mode, size and hover; the animation runs itself
+  // biome-ignore lint/correctness/useExhaustiveDependencies: redrawn per round, mode, size, hover and own votes; the animation runs itself
   useEffect(() => {
     const c = canvas.current;
     const l = live.current;
@@ -389,13 +424,14 @@ export function VoteCurves({ wave, colors }: Props) {
         settle: drawing ? 0 : moving ? ease((el - DRAW_MS) / SETTLE_MS) : 1,
         drawing,
         hoverX,
+        marks,
       });
       setSettled(!moving);
       if (moving) raf = requestAnimationFrame(frame);
     };
     frame(performance.now());
     return () => cancelAnimationFrame(raf);
-  }, [wave?.round, mode, size.w, size.h, hoverX]);
+  }, [wave?.round, mode, size.w, size.h, hoverX, marksKey]);
 
   const kinds = CURVE_KINDS.map((kind, i) => ({ kind, color: colors[i]! })).filter(
     (k) => cur && cur[k.kind].length >= 2,
@@ -408,6 +444,21 @@ export function VoteCurves({ wave, colors }: Props) {
     hoverX === null || !cur || !settled
       ? null
       : Math.max(0, Math.min(span, ((hoverX - PAD.l) / Math.max(1, size.w - PAD.l - PAD.r)) * span));
+  // one tooltip row per kind the visitor voted in
+  const own = marks
+    ? CURVE_KINDS.flatMap((kind) => {
+        const list = marks[kind];
+        if (list.length === 0) return [];
+        const first = list[0]!;
+        const last = list[list.length - 1]!;
+        const won = list.some((m) => m.win) ? ' · won the round' : '';
+        const value =
+          list.length === 1
+            ? `${fmt.int(first.ms)} ms · ${fmt.int(first.place)} of ${fmt.int(first.of)}${won}`
+            : `${list.length} votes · ${fmt.int(first.ms)} to ${fmt.int(last.ms)} ms${won}`;
+        return [{ kind, value }];
+      })
+    : [];
   const pick = (m: CurveMode) => {
     setWanted(m);
     try {
@@ -421,7 +472,10 @@ export function VoteCurves({ wave, colors }: Props) {
     <div className="curves">
       <ChartPanel
         title="ARRIVAL CURVES"
-        legend={kinds.map((k) => ({ name: CURVE_LABELS[k.kind], color: k.color }))}
+        legend={[
+          ...kinds.map((k) => ({ name: CURVE_LABELS[k.kind], color: k.color })),
+          ...(own.length ? [{ name: 'yours', color: MINE }] : []),
+        ]}
         value={
           wave?.accounts && (
             <span className="seg">
@@ -463,6 +517,13 @@ export function VoteCurves({ wave, colors }: Props) {
                   <span className="chart-tip-value">
                     {Math.round(shareAt(cur[k.kind], hoverMs) * 100)}% of {cur[k.kind].length}
                   </span>
+                </div>
+              ))}
+              {own.map((o) => (
+                <div key={`own-${o.kind}`} className="chart-tip-row">
+                  <span className="swatch" style={{ background: MINE }} />
+                  <span className="chart-tip-label">your {CURVE_LABELS[o.kind]}</span>
+                  <span className="chart-tip-value">{o.value}</span>
                 </div>
               ))}
             </div>

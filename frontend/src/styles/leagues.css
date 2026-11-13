@@ -163,6 +163,37 @@
   font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
+/* voting addresses of a pinned node */
+.lg-addrs {
+  margin-top: 12px;
+}
+.lg-addrs label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+}
+.lg-addr-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  font-size: 12px;
+}
+.lg-addr-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.lg-addr-list .lg-dim,
+.lg-addr-seen {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.lg-addr-seen {
+  color: var(--green);
+}
 .lg-mine-cat.lg-band-1 {
   border-left-color: var(--green);
 }

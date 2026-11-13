@@ -124,6 +124,8 @@ export interface BoxSlot {
   votes: number;
   /** p5, p25, median, p75, p95 in ms on the chosen zero */
   q: [number, number, number, number, number];
+  /** The chosen zero on the round's clock, ms: subtract it from a round-clock time to place it on this slot */
+  zero: number;
 }
 
 /** The newest `rounds` rounds that have vote timing for a kind, oldest first. */
@@ -134,7 +136,7 @@ export function boxSlots(blocks: BlockStat[], kind: BoxKind, axis: BoxAxis, roun
     if (!box) continue;
     const [votes, first, ...q] = box;
     const zero = axis === 'first' ? first : 0;
-    out.push({ round: blocks[i]!.round, votes, q: q.map((ms) => ms - zero) as BoxSlot['q'] });
+    out.push({ round: blocks[i]!.round, votes, q: q.map((ms) => ms - zero) as BoxSlot['q'], zero });
   }
   return out.reverse();
 }

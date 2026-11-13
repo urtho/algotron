@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { BlockStat } from '../../../shared/types.ts';
+import type { MyMark, MyRound } from '../avstream.ts';
 import { BOX_KINDS, type BoxAxis, type BoxKind, boxSlots, fmt } from '../stats.ts';
-import { Canvas, ChartPanel, type Frame } from './Chart.tsx';
+import { Canvas, ChartPanel, type Frame, MINE, mineDot } from './Chart.tsx';
 
 /** Ink and chrome for canvas drawing; kept in step with Chart.tsx and styles/app.css */
 const INK = { text: '#9fe8d2', hi: '#e6fff7', muted: '#3f8573', grid: '#0a3040', surface: '#00060f' };
@@ -36,12 +37,23 @@ function niceStep(span: number): number {
 /**
  * One kind's last rounds: a box per round (whisker 5–95%, box 25–75%, tick at the median) of when its votes
  * first reached any relay, and under it a strip counting the votes. The strip is its own plot, from zero.
+ *
+ * `mine`: the visitor's own proposals by round, drawn as a dot on the round's box at the moment the proposal
+ * first reached a relay, with a ring when it won the round. A dot above the scale sits on its top edge.
  */
-function BoxChart(props: { blocks: BlockStat[]; kind: BoxKind; axis: BoxAxis; color: string }) {
-  const { kind, axis, color } = props;
+function BoxChart(props: {
+  blocks: BlockStat[];
+  kind: BoxKind;
+  axis: BoxAxis;
+  color: string;
+  mine?: Map<number, MyMark[]>;
+}) {
+  const { kind, axis, color, mine } = props;
   const slots = boxSlots(props.blocks, kind, axis);
   const n = slots.length;
   const last = slots[n - 1];
+  const own = slots.map((s) => mine?.get(s.round) ?? []);
+  const ownKey = own.map((list, i) => (list.length ? `${slots[i]!.round}:${list.length}` : '')).join('');
 
   // a round with a late straggler must not flatten the rest: the scale follows the bulk, the clip cuts the tail
   const tops = slots.map((s) => s.q[4]).sort((a, b) => a - b);
@@ -70,7 +82,7 @@ function BoxChart(props: { blocks: BlockStat[]; kind: BoxKind; axis: BoxAxis; co
   return (
     <Canvas
       padRight={10}
-      deps={[kind, axis, last?.round, n, last?.q[2]]}
+      deps={[kind, axis, last?.round, n, last?.q[2], ownKey]}
       draw={(f, hoverX) => {
         const { ctx } = f;
         const g = geometry(f);
@@ -123,6 +135,14 @@ function BoxChart(props: { blocks: BlockStat[]; kind: BoxKind; axis: BoxAxis; co
           ctx.fillRect(x - bw / 2, Math.round(g.sy(s.q[2])) - 1, bw, 2);
         });
         ctx.restore();
+        slots.forEach((s, i) => {
+          ctx.globalAlpha = lit(i);
+          for (const m of own[i]!) {
+            const y = Math.max(f.y0, Math.min(g.plotY1, g.sy(m.ms - s.zero)));
+            mineDot(ctx, g.cx(i), y, m.win, 3);
+          }
+        });
+        ctx.globalAlpha = 1;
 
         ctx.strokeStyle = INK.grid;
         for (const y of [g.stripY0, f.y1]) {
@@ -163,6 +183,11 @@ function BoxChart(props: { blocks: BlockStat[]; kind: BoxKind; axis: BoxAxis; co
             { color, label: 'median', value: ms(s.q[2]) },
             { label: '25%', value: ms(s.q[1]) },
             { label: '5%', value: ms(s.q[0]) },
+            ...own[i]!.map((m, k) => ({
+              color: MINE,
+              label: own[i]!.length > 1 ? `yours ${k + 1}` : 'yours',
+              value: `${ms(m.ms - s.zero)}${m.win ? ' · won' : ''}`,
+            })),
           ],
         };
       }}
@@ -173,9 +198,16 @@ function BoxChart(props: { blocks: BlockStat[]; kind: BoxKind; axis: BoxAxis; co
 /**
  * Three panels for the bottom row: proposals, soft votes and cert votes over the last BOX_ROUNDS rounds.
  * One switch, repeated in each head, sets the zero for all three. avmonitor only.
+ * The proposals panel marks the visitor's own proposals (`mine`, by round).
  */
-export function VoteBoxes({ blocks, colors }: { blocks: BlockStat[]; colors: string[] }) {
+export function VoteBoxes(props: { blocks: BlockStat[]; colors: string[]; mine?: Map<number, MyRound> }) {
+  const { blocks, colors } = props;
   const [axis, setAxis] = useState<BoxAxis>(savedAxis);
+  const proposals = useMemo(() => {
+    const by = new Map<number, MyMark[]>();
+    for (const [round, m] of props.mine ?? []) if (m.block.length) by.set(round, m.block);
+    return by;
+  }, [props.mine]);
   const pick = (a: BoxAxis) => {
     setAxis(a);
     try {
@@ -211,7 +243,13 @@ export function VoteBoxes({ blocks, colors }: { blocks: BlockStat[]; colors: str
               </span>
             }
           >
-            <BoxChart blocks={blocks} kind={kind} axis={axis} color={colors[i]!} />
+            <BoxChart
+              blocks={blocks}
+              kind={kind}
+              axis={axis}
+              color={colors[i]!}
+              mine={kind === 'proposal' ? proposals : undefined}
+            />
           </ChartPanel>
         );
       })}

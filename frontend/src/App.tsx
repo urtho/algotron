@@ -27,7 +27,7 @@ export function App() {
       <div className="app-dash" style={{ opacity: booted ? 1 : 0, display: leagues ? 'none' : undefined }}>
         <Dashboard state={state} />
       </div>
-      {leagues && <Leagues />}
+      {leagues && <Leagues votes={!!state.config.avstream} />}
     </div>
   );
 }

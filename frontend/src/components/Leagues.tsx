@@ -1,15 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RankCell, RankNode } from '../../../shared/types.ts';
-import {
-  BAND_TEXT,
-  band,
-  findNode,
-  loadMine,
-  parseQuery,
-  saveMine,
-  tenureText,
-  tenureYears,
-} from '../rank.ts';
+import { type MyVotes, useMyVotes } from '../avstream.ts';
+import { MAX_ADDRS, parseAddresses, mine as pins, useMine } from '../mine.ts';
+import { BAND_TEXT, band, findNode, parseQuery, tenureText, tenureYears } from '../rank.ts';
+import { fmt } from '../stats.ts';
 import { useRank } from '../useRank.ts';
 import '../styles/leagues.css';
 
@@ -65,15 +59,88 @@ function Cell({ cell, unit }: { cell?: RankCell; unit: string }) {
 }
 
 /**
+ * The voting addresses of one pinned node. The ranking does not say which accounts a node votes with, so the
+ * visitor gives them, and the monitor then marks those accounts' votes and proposals. They are kept on this
+ * device only; `feed` tells whether the public vote stream knows each one as a voter.
+ */
+function Addresses({ id, list, feed }: { id: string; list: string[]; feed: MyVotes }) {
+  const [text, setText] = useState('');
+  const [note, setNote] = useState('');
+  const add = () => {
+    const { ok, bad } = parseAddresses(text);
+    if (ok.length === 0 && bad.length === 0) return;
+    const room = MAX_ADDRS - list.length;
+    if (ok.length) pins.addAddresses(id, ok);
+    // what was not taken stays in the box to be corrected
+    setText(bad.join(' '));
+    setNote(
+      bad.length
+        ? 'Not an Algorand address: it has 58 characters, A to Z and 2 to 7. Left in the box.'
+        : ok.filter((a) => !list.includes(a)).length > room
+          ? `A node keeps ${MAX_ADDRS} addresses at most.`
+          : '',
+    );
+  };
+  const state = (a: string) =>
+    !feed.live ? 'waiting for the vote feed' : feed.seen.has(a) ? 'seen voting' : 'not seen voting yet';
+
+  return (
+    <div className="lg-addrs">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <label htmlFor={`lg-a-${id}`}>VOTING ADDRESSES</label>
+        <input
+          id={`lg-a-${id}`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="the accounts this node votes with, one or several"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <button type="submit">ADD</button>
+      </form>
+      {note && <p className="lg-note">{note}</p>}
+      {list.length > 0 && (
+        <ul className="lg-addr-list">
+          {list.map((a) => (
+            <li key={a}>
+              <span className="lg-addr" title={a}>
+                {fmt.addr(a)}
+              </span>
+              <span className={feed.live && feed.seen.has(a) ? 'lg-addr-seen' : 'lg-dim'}>{state(a)}</span>
+              <button
+                type="button"
+                className="lg-linkish"
+                aria-label={`Remove ${fmt.addr(a)}`}
+                onClick={() => pins.removeAddress(id, a)}
+              >
+                REMOVE
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * The validator leagues: one table per stake league, a column per category. The page loads the same snapshot for
  * every visitor and finds "my node" in it locally; what is typed into the search box stays on the device.
+ * `votes`: the monitor can mark a visitor's own votes, so a pinned node takes voting addresses.
  */
-export function Leagues() {
+export function Leagues({ votes }: { votes: boolean }) {
   const { snap, error } = useRank();
+  const me = useMine();
+  const mine = me.ids;
+  const feed = useMyVotes();
   const [back, setBack] = useState(0);
   const [league, setLeague] = useState('');
   const [sort, setSort] = useState('cert');
-  const [mine, setMine] = useState<string[]>(loadMine);
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
   const [open, setOpen] = useState('');
@@ -136,18 +203,11 @@ export function Leagues() {
       );
       return;
     }
-    const next = [hit.id, ...mine.filter((id) => id !== hit.id)].slice(0, 8);
-    setMine(next);
-    saveMine(next);
+    pins.pin(hit.id);
     setLeague(hit.league);
     setOpen(hit.id);
     setQuery('');
     setNote('');
-  };
-  const forget = (id: string) => {
-    const next = mine.filter((x) => x !== id);
-    setMine(next);
-    saveMine(next);
   };
 
   return (
@@ -207,6 +267,14 @@ export function Leagues() {
             here is not sent.
           </p>
           {note && <p className="lg-note">{note}</p>}
+          {votes && mine.length > 0 && (
+            <p className="lg-private">
+              Optional: add the accounts a pinned node votes with, and the monitor marks their votes on the
+              arrival curves (BY ADDRESS) and their proposals on the proposals chart. The ranking does not
+              know which accounts belong to a node. The addresses stay on this device too: the page reads the
+              public vote feed, the same for everyone, and finds your accounts in it here.
+            </p>
+          )}
           {myNodes.map(({ id, node }) => (
             <div key={id} className="lg-mine">
               <div className="lg-mine-head">
@@ -218,7 +286,7 @@ export function Leagues() {
                 ) : (
                   <span className="lg-dim">not ranked in this season</span>
                 )}
-                <button type="button" className="lg-linkish" onClick={() => forget(id)}>
+                <button type="button" className="lg-linkish" onClick={() => pins.forget(id)}>
                   FORGET
                 </button>
               </div>
@@ -241,6 +309,7 @@ export function Leagues() {
                   })}
                 </div>
               )}
+              {votes && <Addresses id={id} list={me.addrs[id] ?? []} feed={feed} />}
             </div>
           ))}
         </section>

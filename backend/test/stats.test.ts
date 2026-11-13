@@ -120,11 +120,11 @@ test('boxSlots takes the newest rounds with vote timing, on either zero', () => 
     }),
   ];
   expect(boxSlots(blocks, 'soft', 'clock')).toEqual([
-    { round: 100, votes: 300, q: [2410, 2450, 2500, 2600, 2800] },
-    { round: 102, votes: 310, q: [2510, 2550, 2600, 2700, 2900] },
+    { round: 100, votes: 300, q: [2410, 2450, 2500, 2600, 2800], zero: 0 },
+    { round: 102, votes: 310, q: [2510, 2550, 2600, 2700, 2900], zero: 0 },
   ]);
   expect(boxSlots(blocks, 'soft', 'first', 1)).toEqual([
-    { round: 102, votes: 310, q: [10, 50, 100, 200, 400] },
+    { round: 102, votes: 310, q: [10, 50, 100, 200, 400], zero: 2500 },
   ]);
   expect(boxSlots(blocks, 'proposal', 'clock')).toEqual([]);
 });

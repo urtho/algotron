@@ -5,6 +5,32 @@ const INK = { text: '#9fe8d2', muted: '#3f8573', grid: '#0a3040', surface: '#000
 const FONT = "10px 'Share Tech Mono', monospace";
 const PAD = { l: 34, r: 46, t: 10, b: 16 };
 
+/** The visitor's own votes and proposals, on every chart that marks them */
+export const MINE = '#4dff9a';
+
+/** A dot for one of the visitor's votes; a proposal that won its round gets a ring. */
+export function mineDot(ctx: CanvasRenderingContext2D, x: number, y: number, win = false, r = 3.5): void {
+  ctx.save();
+  ctx.setLineDash([]);
+  // a dark rim keeps the dot apart from the curve or box it sits on
+  ctx.fillStyle = INK.surface;
+  ctx.beginPath();
+  ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = MINE;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  if (win) {
+    ctx.strokeStyle = MINE;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4.5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export interface Tip {
   x: number;
   title: string;

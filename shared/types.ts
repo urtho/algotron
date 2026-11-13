@@ -127,6 +127,11 @@ export interface AppConfig {
   pollMs: number;
   /** Where propagation figures come from: block-endpoint polling, or avmonitor's gossip vote timing */
   propSource: 'poll' | 'avmonitor';
+  /**
+   * avmonitor's v2 base URL as a browser reaches it. The page reads it directly, and only when the visitor has
+   * given voting addresses for a pinned node, to mark that node's votes. Unset: no such marks.
+   */
+  avstream?: string;
 }
 
 export interface LogLine {

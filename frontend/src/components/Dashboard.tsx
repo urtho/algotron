@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { useMyVotes, useMyVotesFeed } from '../avstream.ts';
+import { allAddresses, useMine } from '../mine.ts';
 import type { AppState } from '../state.ts';
 import {
   blockTimeSeries,
@@ -57,6 +59,13 @@ export function Dashboard({ state }: { state: AppState }) {
       p90: shown.map((b) => b.p90),
     };
   }, [blocks]);
+
+  // a visitor who gave voting addresses for a pinned node gets their own votes marked: the page reads them
+  // from the public vote stream itself, so nothing about the visitor reaches this site's server
+  const me = useMine();
+  const addresses = useMemo(() => allAddresses(me), [me]);
+  useMyVotesFeed(config.avstream, addresses);
+  const myVotes = useMyVotes().rounds;
 
   const newest = blocks[blocks.length - 1];
   const av = config.propSource === 'avmonitor';
@@ -172,13 +181,13 @@ export function Dashboard({ state }: { state: AppState }) {
           </div>
 
           <div className="dash-bottom">
-            <VoteBoxes blocks={blocks} colors={C.kinds} />
+            <VoteBoxes blocks={blocks} colors={C.kinds} mine={myVotes} />
           </div>
         </div>
       </div>
 
       <div className="dash-band">
-        <VoteCurves wave={state.wave} colors={C.kinds} />
+        <VoteCurves wave={state.wave} colors={C.kinds} mine={myVotes} />
       </div>
     </div>
   );

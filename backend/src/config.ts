@@ -21,6 +21,14 @@ export const HISTORY_BLOCKS = num(env.HISTORY_BLOCKS, 400);
 export const BACKFILL_BLOCKS = num(env.BACKFILL_BLOCKS, 240);
 /** avmonitor v2 base URL, e.g. ws://avmonitor.ts.v.nodely.io:8080. Unset: propagation comes from polling. */
 export const AVMONITOR_URL = env.AVMONITOR_URL ?? '';
+/**
+ * The same feed as a visitor's browser reaches it: the page reads it to mark the visitor's own votes. Unset or
+ * empty: a `wss://` AVMONITOR_URL is taken to be public, any other (a private `ws://` address) is not handed to
+ * the page. `off`: never.
+ */
+const avPublic = env.AVMONITOR_PUBLIC_URL?.trim() ?? '';
+export const AVMONITOR_PUBLIC_URL =
+  avPublic === 'off' ? '' : avPublic || (AVMONITOR_URL.startsWith('wss://') ? AVMONITOR_URL : '');
 /** Bearer the valrank publisher sends with the ranking snapshot. Unset: POST /api/rank/ingest answers 404. */
 export const RANK_TOKEN = env.RANK_TOKEN ?? '';
 /** Development: a snapshot file to serve until the first POST arrives */
@@ -35,4 +43,5 @@ export const appConfig: AppConfig = {
   explorer: (env.EXPLORER ?? env.VITE_EXPLORER ?? 'https://allo.info').replace(/\/$/, ''),
   pollMs: FAST_POLL_MS,
   propSource: AVMONITOR_URL ? 'avmonitor' : 'poll',
+  avstream: AVMONITOR_URL && AVMONITOR_PUBLIC_URL ? AVMONITOR_PUBLIC_URL.replace(/\/$/, '') : undefined,
 };
