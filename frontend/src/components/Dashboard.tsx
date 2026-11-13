@@ -17,6 +17,7 @@ import { Globe } from './Globe.tsx';
 import { HexWall } from './HexWall.tsx';
 import { Kpis } from './Kpis.tsx';
 import { Moments } from './Moments.tsx';
+import { Podium } from './Podium.tsx';
 import { ProposerRing } from './ProposerRing.tsx';
 import { RoundClock } from './RoundClock.tsx';
 import { VoteBoxes } from './VoteBoxes.tsx';
@@ -114,6 +115,7 @@ export function Dashboard({ state }: { state: AppState }) {
               connected={state.connected}
             />
             <ProposerRing rows={proposers} newest={newest} color={C.line} />
+            <Podium />
           </div>
         </div>
 

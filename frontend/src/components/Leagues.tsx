@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { RankCell, RankNode, RankSnapshot } from '../../../shared/types.ts';
+import type { RankCell, RankNode } from '../../../shared/types.ts';
 import {
   BAND_TEXT,
   band,
@@ -10,9 +10,9 @@ import {
   tenureText,
   tenureYears,
 } from '../rank.ts';
+import { useRank } from '../useRank.ts';
 import '../styles/leagues.css';
 
-const REFRESH_MS = 5 * 60_000;
 const MEDAL = ['', 'GOLD', 'SILVER', 'BRONZE'];
 const UNIT = { rank: '', ms: ' ms', days: ' d', hours: ' h' } as const;
 
@@ -69,8 +69,7 @@ function Cell({ cell, unit }: { cell?: RankCell; unit: string }) {
  * every visitor and finds "my node" in it locally; what is typed into the search box stays on the device.
  */
 export function Leagues() {
-  const [snap, setSnap] = useState<RankSnapshot | null>(null);
-  const [error, setError] = useState('');
+  const { snap, error } = useRank();
   const [back, setBack] = useState(0);
   const [league, setLeague] = useState('');
   const [sort, setSort] = useState('cert');
@@ -78,30 +77,6 @@ export function Leagues() {
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
   const [open, setOpen] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch('/api/rank/latest');
-        if (!res.ok)
-          throw new Error(res.status === 503 ? 'The ranking has not arrived yet.' : `HTTP ${res.status}`);
-        const data = (await res.json()) as RankSnapshot;
-        if (alive) {
-          setSnap(data);
-          setError('');
-        }
-      } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      }
-    };
-    void load();
-    const timer = setInterval(load, REFRESH_MS);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, []);
 
   const season = snap ? snap.seasons[Math.max(0, snap.seasons.length - 1 - back)] : undefined;
   // a link may point at a node (#leagues/<id>): the fragment stays in the browser, so the server still does not see it

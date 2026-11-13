@@ -755,6 +755,112 @@
   aspect-ratio: 1;
   display: block;
 }
+/* League leaders, bottom left of the globe: one medal category at a time */
+.podium {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 20;
+  width: 260px;
+  padding: 8px 10px 7px;
+  font-size: 11px;
+  background: rgba(0, 6, 15, 0.86);
+  border: 1px solid var(--border2);
+  box-shadow: 0 0 14px rgba(0, 204, 255, 0.12);
+}
+.podium-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--ink-muted);
+}
+.podium-dots i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 4px;
+  border: 1px solid var(--border2);
+}
+.podium-dots i.on {
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+.podium-cat {
+  margin: 3px 0 5px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--cyan);
+  text-shadow: 0 0 8px rgba(0, 204, 255, 0.5);
+  animation: podium-in 0.5s ease-out;
+}
+.podium-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+.podium-league {
+  flex: 0 0 52px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+.podium-row a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  text-decoration: none;
+}
+.podium-row a::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #e8b923;
+}
+.podium-row a:hover,
+.podium-row a:focus-visible {
+  color: var(--cyan);
+  outline: none;
+}
+.podium-more,
+.podium-none {
+  font-size: 10px;
+  color: var(--ink-muted);
+}
+.podium-all {
+  display: block;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.podium-all:hover,
+.podium-all:focus-visible {
+  color: var(--cyan);
+  outline: none;
+}
+@keyframes podium-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .podium-cat {
+    animation: none;
+  }
+}
 /* what the globe does and does not show */
 .globe-note {
   position: absolute;
