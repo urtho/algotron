@@ -436,6 +436,7 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  container: globe / size;
   display: flex;
   flex-direction: column;
 }
@@ -755,11 +756,11 @@
   aspect-ratio: 1;
   display: block;
 }
-/* League leaders, bottom left of the globe: one medal category at a time */
+/* League leaders, right edge of the globe above the wave key (.wave-key, about 50 px tall at bottom 10 px) */
 .podium {
   position: absolute;
-  left: 12px;
-  bottom: 10px;
+  right: 12px;
+  bottom: 72px;
   z-index: 20;
   width: 260px;
   padding: 8px 10px 7px;
@@ -850,10 +851,16 @@
   color: var(--cyan);
   outline: none;
 }
+/* Under the proposer ring there is room for it only in a tall globe cell: ring (up to 200 px), podium, key */
+@container globe (max-height: 440px) {
+  .podium {
+    display: none;
+  }
+}
 @keyframes podium-in {
   from {
     opacity: 0;
-    transform: translateX(-6px);
+    transform: translateX(6px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
