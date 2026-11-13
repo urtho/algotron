@@ -126,6 +126,9 @@ export function Leagues() {
   }
 
   const cats = snap.categories;
+  // a snapshot from before the leagues had names shows their letters
+  const title = (id: string) =>
+    (snap.leagues.find((l) => l.id === id)?.title ?? `LEAGUE ${id}`).toUpperCase();
   const find = () => {
     const q = parseQuery(query);
     const hit = findNode(season, q);
@@ -214,7 +217,7 @@ export function Leagues() {
                 <span className="lg-mine-name">{node ? name(node) : id}</span>
                 {node ? (
                   <button type="button" className="lg-linkish" onClick={() => setLeague(node.league)}>
-                    LEAGUE {node.league}
+                    {title(node.league)}
                   </button>
                 ) : (
                   <span className="lg-dim">not ranked in this season</span>
@@ -255,7 +258,7 @@ export function Leagues() {
               aria-pressed={l.id === shown}
               onClick={() => setLeague(l.id)}
             >
-              <span className="lg-league-id">LEAGUE {l.id}</span>
+              <span className="lg-league-id">{title(l.id)}</span>
               <span className="lg-league-name">{l.name} ALGO</span>
               <span className="lg-league-n">{count(season, l.id)} nodes</span>
             </button>

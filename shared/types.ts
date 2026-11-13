@@ -168,7 +168,8 @@ export type ServerMessage =
  */
 export interface RankSnapshot {
   v: 1;
-  leagues: { id: string; name: string; min: number; max: number | null }[];
+  /** `title` is the league's name (Spark, Arc ...); `name` describes its stake range */
+  leagues: { id: string; name: string; title?: string; min: number; max: number | null }[];
   categories: { id: string; name: string; shows: 'rank' | 'ms' | 'days' | 'hours' }[];
   /** Oldest first; the last one is the running season */
   seasons: RankSeason[];
