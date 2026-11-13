@@ -212,11 +212,23 @@ export function Globe({ nodes, wave }: Props) {
     sun.position.set(5, 3, 5);
     scene.add(sun);
 
-    // ── HUD: Algorand logo pinned to lower-left, independent of globe ─────────
+    // ── HUD: Algorand logo pinned to lower-right above the wave key, independent of globe ──
     // Logo geometry spans ~3.58 Three.js units; scale to ~80 screen pixels.
     const LOGO_SCALE = 22;
     const LOGO_HALF = (3.58 * LOGO_SCALE) / 2; // ≈ 39 px
+    // The mesh sits 0.55 units off the axis it spins on, so it sweeps wider than half its width
+    const LOGO_SWEEP = 2.4 * LOGO_SCALE; // ≈ 53 px
+    // .wave-key sits at right 12 px, bottom 10 px and is about 50 px tall
+    const LOGO_RIGHT = 12;
+    const LOGO_BOTTOM = 72;
+    // In a short cell there is no room between the proposer ring and the key: stats.css then sets --logo-side to
+    // left (the podium is hidden there) and the logo stands in the lower-left corner
     const LOGO_MARGIN = 16;
+    const placeLogo = (cw: number, ch: number) => {
+      if (getComputedStyle(container).getPropertyValue('--logo-side').trim() === 'left')
+        logoGroup.position.set(-cw / 2 + LOGO_MARGIN + LOGO_HALF, -ch / 2 + LOGO_MARGIN + LOGO_HALF, 0);
+      else logoGroup.position.set(cw / 2 - LOGO_RIGHT - LOGO_SWEEP, -ch / 2 + LOGO_BOTTOM + LOGO_HALF, 0);
+    };
 
     const hudScene = new THREE.Scene();
     hudScene.add(new THREE.AmbientLight(0x223344, 2.0));
@@ -230,7 +242,7 @@ export function Globe({ nodes, wave }: Props) {
     const logoGroup = algoLogo();
     logoGroup.scale.setScalar(LOGO_SCALE);
     logoGroup.rotation.x = 0.0;
-    logoGroup.position.set(-w / 2 + LOGO_MARGIN + LOGO_HALF, -h / 2 + LOGO_MARGIN + LOGO_HALF, 0);
+    placeLogo(w, h);
     hudScene.add(logoGroup);
 
     // ── Continent contours ────────────────────────────────────────────────────
@@ -461,7 +473,7 @@ export function Globe({ nodes, wave }: Props) {
       hudCam.top = nh / 2;
       hudCam.bottom = -nh / 2;
       hudCam.updateProjectionMatrix();
-      logoGroup.position.set(-nw / 2 + LOGO_MARGIN + LOGO_HALF, -nh / 2 + LOGO_MARGIN + LOGO_HALF, 0);
+      placeLogo(nw, nh);
     });
     ro.observe(container);
 

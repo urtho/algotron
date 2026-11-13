@@ -103,7 +103,8 @@
   border-color: var(--cyan);
   outline: none;
 }
-/* The way into the validator leagues: a light-cycle trail runs round its frame and a glint crosses the text. */
+/* The ways into the validator leagues, the button here and the podium on the globe (.podium): a light-cycle trail
+   runs round the frame and a glint crosses the text. */
 @property --trail {
   syntax: "<angle>";
   inherits: false;
@@ -126,7 +127,8 @@
   animation: leagues-pulse 3.2s ease-in-out infinite;
 }
 /* the trail: a bright head with a fading tail, drawn only on the 1px frame */
-.topbar-nav .topbar-nav-own::before {
+.topbar-nav .topbar-nav-own::before,
+.podium::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -150,7 +152,8 @@
   pointer-events: none;
 }
 /* the glint */
-.topbar-nav .topbar-nav-own::after {
+.topbar-nav .topbar-nav-own::after,
+.podium::after {
   content: "";
   position: absolute;
   top: 0;
@@ -192,10 +195,14 @@
 @media (prefers-reduced-motion: reduce) {
   .topbar-nav .topbar-nav-own,
   .topbar-nav .topbar-nav-own::before,
-  .topbar-nav .topbar-nav-own::after {
+  .topbar-nav .topbar-nav-own::after,
+  .podium,
+  .podium::before,
+  .podium::after {
     animation: none;
   }
-  .topbar-nav .topbar-nav-own::after {
+  .topbar-nav .topbar-nav-own::after,
+  .podium::after {
     display: none;
   }
 }
@@ -436,7 +443,6 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  container: globe / size;
   display: flex;
   flex-direction: column;
 }
@@ -756,18 +762,30 @@
   aspect-ratio: 1;
   display: block;
 }
-/* League leaders, right edge of the globe above the wave key (.wave-key, about 50 px tall at bottom 10 px) */
+/* League leaders, bottom left of the globe: one medal category at a time.
+   Framed like the VALIDATOR LEAGUES button: the trail and the glint are the rules next to .topbar-nav-own.
+   The globe cell must not become a query container: Chrome then restarts these animations about twice a second. */
 .podium {
   position: absolute;
-  right: 12px;
-  bottom: 72px;
+  left: 12px;
+  bottom: 10px;
   z-index: 20;
   width: 260px;
-  padding: 8px 10px 7px;
+  /* the 1px frame is an inset shadow, not a border, so the trail is drawn on it */
+  padding: 9px 11px 8px;
   font-size: 11px;
   background: rgba(0, 6, 15, 0.86);
-  border: 1px solid var(--border2);
-  box-shadow: 0 0 14px rgba(0, 204, 255, 0.12);
+  box-shadow:
+    inset 0 0 0 1px var(--border2),
+    0 0 10px rgba(0, 204, 255, 0.25);
+  overflow: hidden;
+  animation: leagues-pulse 3.2s ease-in-out infinite;
+}
+.podium:hover,
+.podium:focus-within {
+  box-shadow:
+    inset 0 0 0 1px var(--cyan),
+    0 0 18px rgba(0, 204, 255, 0.6);
 }
 .podium-head {
   display: flex;
@@ -851,16 +869,32 @@
   color: var(--cyan);
   outline: none;
 }
-/* Under the proposer ring there is room for it only in a tall globe cell: ring (up to 200 px), podium, key */
-@container globe (max-height: 440px) {
+/* The globe cell is 36% of the window wide. Under about 1680 px the podium (260 px) and the wave key (300 px) do not
+   fit side by side, so the podium stands above the key's line. Media queries, not container queries: see .podium. */
+@media (max-width: 1680px) {
+  .podium {
+    bottom: 72px;
+  }
+}
+/* Standing there it would cover half the globe in a cell under about 440 px tall, so it goes. The KPI strip is two
+   rows up to 1500 px (about 290 px), one row above (about 100 px). Narrower than 1100 px it would meet the logo. */
+@media (max-width: 1500px) and (max-height: 1060px), (max-width: 1680px) and (max-height: 795px),
+  (max-height: 640px), (max-width: 1100px) {
   .podium {
     display: none;
+  }
+}
+/* A cell too short for the ring, the logo and the key on the right: the logo takes the lower-left corner, which the
+   podium has left by then. Globe.tsx reads --logo-side. */
+@media (max-width: 1500px) and (max-height: 919px), (max-height: 640px) {
+  .globe-cell {
+    --logo-side: left;
   }
 }
 @keyframes podium-in {
   from {
     opacity: 0;
-    transform: translateX(6px);
+    transform: translateX(-6px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
