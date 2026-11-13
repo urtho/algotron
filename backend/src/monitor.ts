@@ -11,6 +11,10 @@ const FLUSH_MS = 250;
 const V6_CHECK_MS = 60_000;
 const EWMA = 0.2;
 const FAR_BEHIND = 20;
+/** A round further ahead of the tip than this is one node's error, not the chain */
+const FAR_AHEAD = 1000;
+/** Answers needed before the first tip is chosen */
+const BOOT_QUORUM = 3;
 /** Fast polling starts this long before the next block is expected */
 const DUE_LEAD_MS = 900;
 /** A node's avmonitor timing is used while it is at most this old; after that polling takes over again */
@@ -42,6 +46,17 @@ function quantile(sorted: number[], q: number): number {
 }
 
 /**
+ * The first tip, from the rounds the first nodes reported: the highest round within FAR_AHEAD of their median.
+ * A stuck relay (r-c7 sat 235,786 rounds behind on 2026-11-13) or one claiming a far-future round cannot set it alone.
+ */
+export function bootTip(rounds: number[]): number {
+  if (rounds.length === 0) return 0;
+  const sorted = [...rounds].sort((a, b) => a - b);
+  const median = sorted[sorted.length >> 1]!;
+  return Math.max(...sorted.filter((r) => Math.abs(r - median) <= FAR_AHEAD));
+}
+
+/**
  * Owns all state: nodes, chain tip, per-round propagation and the block ring.
  * Every node is polled by one sequential loop, however many browsers are connected.
  */
@@ -57,6 +72,8 @@ export class Monitor {
   private wave?: Wave;
 
   private rounds = new Map<number, RoundSeen>();
+  /** Rounds reported before the first tip was chosen, by node */
+  private bootRounds = new Map<string, number>();
   private raw = new Map<number, RawBlock & { at: number }>();
   private emitted = new Set<number>();
   private fetching = new Set<number>();
@@ -263,7 +280,20 @@ export class Monitor {
 
   private advance(node: NodeState, rt: Runtime, round: number, now: number): void {
     const old = node.lastBlock;
-    if (this.tip > 0 && round > this.tip + 1000) {
+    if (this.tip === 0) {
+      // the first answers choose the tip together; the first one alone could come from a stuck relay, and every
+      // healthy round after it would then look like a far-future claim and be ignored for good
+      this.bootRounds.set(node.id, round);
+      if (this.bootRounds.size < Math.min(BOOT_QUORUM, this.nodes.size)) {
+        node.lastBlock = round;
+        this.touch(node.id, { lastBlock: round });
+        return;
+      }
+      const tip = bootTip([...this.bootRounds.values()]);
+      this.bootRounds.clear();
+      this.newTip(tip, node, now);
+    }
+    if (round > this.tip + FAR_AHEAD) {
       // one node claiming a far future round must not move the tip
       console.warn(`[MONITOR] ${node.label} claims round ${round}, tip is ${this.tip} — ignored`);
       return;
