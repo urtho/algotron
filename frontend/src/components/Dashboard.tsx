@@ -69,7 +69,10 @@ export function Dashboard({ state }: { state: AppState }) {
         <span className="brand-subtitle">
           {config.networkLabel} · v{config.version}
         </span>
-        <nav className="topbar-nav" aria-label="Related sites">
+        <nav className="topbar-nav" aria-label="Views and related sites">
+          <a href="#leagues" className="topbar-nav-own">
+            VALIDATOR LEAGUES
+          </a>
           <a href="https://algo.green" target="_blank" rel="noreferrer">
             ALGO.GREEN
           </a>

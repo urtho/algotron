@@ -66,18 +66,20 @@ docker compose up -d --build
 
 Environment variables, all optional:
 
-| Variable          | Default                                    | Meaning                                                                                 |
-| ----------------- | ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `RELAY_SRV`       | `_algobootstrap._tcp.mainnet.algorand.net` | Relay SRV record (`NONE` to skip)                                                       |
-| `ARCHIVER_SRV`    | `_archive._tcp.mainnet.algorand.net`       | Archiver SRV record (`NONE` to skip)                                                    |
-| `NETWORK_ID`      | `mainnet-v1.0`                             | Genesis ID used in the block URL                                                        |
-| `NETWORK_LABEL`   | `ALGORAND MAINNET`                         | Shown in the top bar                                                                    |
-| `EXPLORER`        | `https://allo.info`                        | Base URL for block and account links                                                    |
-| `HOST` / `PORT`   | `0.0.0.0` / `3001`                         | Listener. The image sets `HOST=::` (IPv4 and IPv6) so health checks on `localhost` work |
-| `POLL_MS`         | `500`                                      | Pause between two polls of one node while no block is due                               |
-| `FAST_POLL_MS`    | `100`                                      | Pause while a block is due (polled propagation resolution)                              |
-| `BACKFILL_BLOCKS` | `240`                                      | Blocks loaded at start to fill the charts                                               |
-| `AVMONITOR_URL`   | unset                                      | avmonitor v2 base URL; unset means polled propagation                                   |
+| Variable          | Default                                    | Meaning                                                                                               |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `RELAY_SRV`       | `_algobootstrap._tcp.mainnet.algorand.net` | Relay SRV record (`NONE` to skip)                                                                     |
+| `ARCHIVER_SRV`    | `_archive._tcp.mainnet.algorand.net`       | Archiver SRV record (`NONE` to skip)                                                                  |
+| `NETWORK_ID`      | `mainnet-v1.0`                             | Genesis ID used in the block URL                                                                      |
+| `NETWORK_LABEL`   | `ALGORAND MAINNET`                         | Shown in the top bar                                                                                  |
+| `EXPLORER`        | `https://allo.info`                        | Base URL for block and account links                                                                  |
+| `HOST` / `PORT`   | `0.0.0.0` / `3001`                         | Listener. The image sets `HOST=::` (IPv4 and IPv6) so health checks on `localhost` work               |
+| `POLL_MS`         | `500`                                      | Pause between two polls of one node while no block is due                                             |
+| `FAST_POLL_MS`    | `100`                                      | Pause while a block is due (polled propagation resolution)                                            |
+| `BACKFILL_BLOCKS` | `240`                                      | Blocks loaded at start to fill the charts                                                             |
+| `AVMONITOR_URL`   | unset                                      | avmonitor v2 base URL; unset means polled propagation                                                 |
+| `RANK_TOKEN`      | unset                                      | bearer for `POST /api/rank/ingest` (validator ranking snapshot); unset means the endpoint answers 404 |
+| `RANK_FILE`       | unset                                      | development: a snapshot file served until the first POST arrives                                      |
 
 The label and explorer are sent to the browser at runtime, so one image serves any network.
 
@@ -100,6 +102,14 @@ Everything comes from `http://{ip}:{port}/v1/{genesis-id}/block/{round in base 3
 A node is marked **no answer** after three failed requests in a row. That is a statement about the path
 from the machine running Algotron: a relay behind a firewall that drops this host looks the same as a
 relay that is down. The card shows the reason (`timeout`, `refused`, `http 503`).
+
+## Validator leagues (optional)
+
+`#leagues` shows a ranking of validators that send telemetry: weekly seasons, four stake leagues, one table per
+category. The ranking is computed elsewhere and POSTed to `/api/rank/ingest` as one snapshot (bearer `RANK_TOKEN`);
+`GET /api/rank/latest` serves that same body to everybody. A visitor's own node is found in it in the browser
+(telemetry GUID, its last 12 characters, or an `@alias`) and remembered in `localStorage` only, so no request ever
+names a node. `#leagues/<12 characters>` opens on a node; the fragment is not sent to the server either.
 
 ## avmonitor feed (optional)
 

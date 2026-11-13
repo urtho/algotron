@@ -1,17 +1,27 @@
 import index from '../../frontend/index.html';
 import type { ServerMessage } from '../../shared/types.ts';
 import { AvClient } from './avmonitor.ts';
-import { AVMONITOR_URL, appConfig, HOST, PORT, REDISCOVER_MS } from './config.ts';
+import { AVMONITOR_URL, appConfig, HOST, PORT, RANK_FILE, RANK_TOKEN, REDISCOVER_MS } from './config.ts';
 import { discover } from './discovery.ts';
 import { Monitor } from './monitor.ts';
+import { RankStore } from './rank.ts';
 
 const TOPIC = 'feed';
 const dev = process.env.NODE_ENV !== 'production';
 
 let clients = 0;
+const rank = new RankStore(RANK_TOKEN);
+if (RANK_FILE) {
+  const err = rank.set(await Bun.file(RANK_FILE).text());
+  if (err) console.warn(`[RANK] ${RANK_FILE}: ${err}`);
+}
 const monitor = new Monitor((msg: ServerMessage) => {
   server.publish(TOPIC, JSON.stringify(msg));
 });
+
+// one snapshot for everybody: nobody asks about a single node
+const rankLatest = { GET: (req: Request) => rank.latest(req) };
+const rankIngest = { POST: (req: Request) => rank.ingest(req) };
 
 const serve = (hostname: string): Bun.Server<undefined> =>
   Bun.serve({
@@ -32,11 +42,14 @@ const serve = (hostname: string): Bun.Server<undefined> =>
             offline: nodes.filter((n) => n.status === 'offline').length,
             blocks: monitor.blocks.length,
             clients,
+            rank: rank.health(),
           },
           { status: ok || nodes.length === 0 ? 200 : 503 },
         );
       },
       '/api/state': () => Response.json(monitor.hello()),
+      '/api/rank/latest': rankLatest,
+      '/api/rank/ingest': rankIngest,
       '/ws': (req, srv) => (srv.upgrade(req) ? undefined : new Response('WebSocket only', { status: 426 })),
     },
     fetch: () => new Response('Not found', { status: 404 }),

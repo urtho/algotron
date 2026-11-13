@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { mapper, type Plot } from '../../frontend/src/components/VoteCurves.tsx';
+import { band, findNode, parseQuery, tenureText } from '../../frontend/src/rank.ts';
 import {
   boxSlots,
   curveScale,
@@ -12,6 +13,7 @@ import {
   waveCurves,
 } from '../../frontend/src/stats.ts';
 import type { BlockStat } from '../../shared/types.ts';
+import { RankStore } from '../src/rank.ts';
 
 const block = (i: number, over: Partial<BlockStat> = {}): BlockStat => ({
   round: 100 + i,
@@ -152,5 +154,58 @@ describe('arrival curve fences', () => {
   test('without votes there is one axis and no break', () => {
     const map = mapper(plot, { split: false, zoom: 700, round: 700 }, { ...round, soft: [], cert: [] }, 0);
     expect(map.fence('block')).toEqual([plot.x0, plot.x1]);
+  });
+});
+
+describe('validator ranking', () => {
+  const season = {
+    wk: '2026-11-09',
+    computed: '2026-11-13T12:59:03Z',
+    final: false,
+    nodes: [
+      { id: '0123456789ab', alias: 'Otter', league: 'B', home: 1, over: 0, tenure: 400, c: {} },
+      { id: 'ffffffffffff', league: 'D', home: 0, over: 1, tenure: 30, c: {} },
+    ],
+  };
+
+  test('a GUID, its last 12 characters and an alias all find the node', () => {
+    expect(parseQuery(' ABCDEF01-2345-6789-abcd-0123456789AB ')).toEqual({ id: '0123456789ab' });
+    expect(parseQuery('0123456789AB')).toEqual({ id: '0123456789ab' });
+    expect(parseQuery('@otter')).toEqual({ alias: 'otter' });
+    expect(parseQuery(':: Otter')).toEqual({ alias: 'otter' });
+    expect(parseQuery('  ')).toEqual({});
+    expect(findNode(season, parseQuery('abcdef01-2345-6789-abcd-0123456789ab'))?.alias).toBe('Otter');
+    expect(findNode(season, parseQuery('@OTTER'))?.id).toBe('0123456789ab');
+    expect(findNode(season, parseQuery('nobody'))).toBeUndefined();
+  });
+
+  test('bands and tenure', () => {
+    expect([band(1, 50), band(5, 50), band(12, 50), band(25, 50), band(26, 50)]).toEqual([1, 1, 2, 3, 4]);
+    expect(tenureText(30)).toBe('30d');
+    expect(tenureText(400)).toBe('1y 35d');
+  });
+
+  test('the store takes a version 1 snapshot and refuses anything else', async () => {
+    const store = new RankStore('secret');
+    const body = JSON.stringify({ v: 1, leagues: [], categories: [], seasons: [season] });
+    const post = (auth: string, text: string) =>
+      store.ingest(
+        new Request('http://x/api/rank/ingest', {
+          method: 'POST',
+          headers: { authorization: auth },
+          body: text,
+        }),
+      );
+    expect((await post('Bearer wrong!', body)).status).toBe(401);
+    expect((await post('Bearer secret', '{"v":2}')).status).toBe(400);
+    expect(store.latest(new Request('http://x/')).status).toBe(503);
+    expect((await post('Bearer secret', body)).status).toBe(200);
+    const got = store.latest(new Request('http://x/'));
+    expect(await got.text()).toBe(body);
+    const etag = got.headers.get('etag')!;
+    expect(store.latest(new Request('http://x/', { headers: { 'if-none-match': etag } })).status).toBe(304);
+    expect((await new RankStore('').ingest(new Request('http://x/', { method: 'POST', body }))).status).toBe(
+      404,
+    );
   });
 });

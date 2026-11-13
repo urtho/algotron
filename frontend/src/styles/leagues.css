@@ -1,0 +1,420 @@
+/* Validator leagues: a reading page, so text is larger and brighter than on the monitor. */
+.lg {
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  --gold: #e8b923;
+  --silver: #c3ccd6;
+  --bronze: #cd8246;
+  --dim: #6fa898;
+}
+.lg-top {
+  height: 34px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-nav .topbar-nav-own {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+.lg-wait {
+  padding: 80px 16px;
+  text-align: center;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+}
+.lg-body {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+.lg-intro h1 {
+  margin: 0 0 8px;
+  font-family: Oxanium, var(--font);
+  font-size: 22px;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-shadow: 0 0 14px rgba(0, 204, 255, 0.45);
+}
+.lg-intro p {
+  margin: 0;
+  max-width: 78ch;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.lg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+.lg-controls .seg-item {
+  font-size: 10px;
+  padding: 4px 10px;
+}
+.lg-computed,
+.lg-dim {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* ── My node ─────────────────────────────────────────────────────────────── */
+.lg-me {
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid var(--border2);
+  background: var(--panel);
+}
+.lg-me form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.lg-me label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--cyan);
+}
+.lg-me input {
+  flex: 1 1 320px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  padding: 7px 9px;
+}
+.lg-me input::placeholder {
+  color: var(--ink-muted);
+}
+.lg-me input:focus-visible {
+  outline: 1px solid var(--cyan);
+}
+.lg-me form button {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--bg);
+  background: var(--cyan);
+  border: 0;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.lg-private,
+.lg-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.lg-note {
+  color: var(--orange);
+}
+.lg-mine {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.lg-mine-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+.lg-mine-name {
+  font-size: 15px;
+  color: var(--green);
+}
+.lg-linkish {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--cyan);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border2);
+  padding: 0;
+  cursor: pointer;
+}
+.lg-mine-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.lg-mine-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+}
+.lg-mine-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+}
+.lg-mine-rank {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.lg-mine-cat.lg-band-1 {
+  border-left-color: var(--green);
+}
+.lg-mine-cat.lg-band-2 {
+  border-left-color: var(--cyan);
+}
+
+/* ── League tabs ─────────────────────────────────────────────────────────── */
+.lg-leagues {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 22px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.lg-league {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: inherit;
+  text-align: left;
+  color: var(--dim);
+  background: var(--bg);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.lg-league:hover,
+.lg-league:focus-visible {
+  color: var(--ink);
+  outline: none;
+}
+.lg-league--on {
+  color: var(--ink);
+  background: var(--bg3);
+  border-bottom-color: var(--cyan);
+}
+.lg-league-id {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--cyan);
+}
+.lg-league-name,
+.lg-league-n {
+  font-size: 11px;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.lg-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-top: 0;
+}
+.lg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.lg-table th {
+  position: sticky;
+  top: 0;
+  text-align: right;
+  font-weight: normal;
+  padding: 0;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  white-space: nowrap;
+}
+.lg-table th.lg-th-node,
+.lg-table th.lg-th-tenure {
+  padding: 8px 10px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+.lg-table th.lg-th-node {
+  text-align: left;
+}
+.lg-sort {
+  width: 100%;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: right;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.lg-sort:hover,
+.lg-sort:focus-visible {
+  color: var(--cyan);
+  outline: none;
+}
+.lg-sort--on {
+  color: var(--cyan);
+  box-shadow: inset 0 -2px 0 var(--cyan);
+}
+.lg-sort--on::after {
+  content: " ▲";
+}
+.lg-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.lg-table tbody tr {
+  cursor: default;
+}
+.lg-table tbody tr:hover {
+  background: var(--bg2);
+}
+.lg-row--mine {
+  background: rgba(0, 255, 136, 0.07);
+  box-shadow: inset 3px 0 0 var(--green);
+}
+.lg-row--open {
+  background: var(--bg3);
+}
+.lg-node {
+  text-align: left;
+}
+.lg-node-name {
+  color: var(--ink);
+  margin-right: 8px;
+}
+.lg-tag {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 5px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  border: 1px solid var(--border2);
+  vertical-align: 1px;
+}
+.lg-tag--me {
+  color: var(--bg);
+  background: var(--green);
+  border-color: var(--green);
+}
+.lg-tag--over {
+  color: var(--orange);
+  border-color: var(--orange);
+}
+.lg-cell {
+  text-align: right;
+}
+.lg-cell--none {
+  color: var(--border2);
+}
+.lg-rank {
+  display: inline-block;
+  min-width: 3ch;
+}
+.lg-value {
+  display: inline-block;
+  min-width: 7ch;
+  margin-left: 6px;
+  color: var(--dim);
+}
+.lg-band-1 .lg-rank {
+  color: var(--green);
+}
+.lg-band-2 .lg-rank {
+  color: var(--cyan);
+}
+.lg-band-3 .lg-rank {
+  color: var(--ink);
+}
+.lg-band-4 .lg-rank {
+  color: var(--dim);
+}
+.lg-medal,
+.lg-badge {
+  display: inline-block;
+  margin: 0 4px;
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  vertical-align: 1px;
+}
+.lg-medal {
+  width: 14px;
+  border-radius: 50%;
+  color: var(--bg);
+  font-weight: bold;
+}
+.lg-medal-1 {
+  background: var(--gold);
+}
+.lg-medal-2 {
+  background: var(--silver);
+}
+.lg-medal-3 {
+  background: var(--bronze);
+}
+.lg-badge {
+  padding: 0 3px;
+  color: var(--green);
+  border: 1px solid var(--green-dim);
+}
+.lg-tenure {
+  text-align: right;
+  color: var(--dim);
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────────── */
+.lg-legend {
+  margin-top: 26px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lg-legend h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0.18em;
+  color: var(--cyan);
+}
+.lg-legend dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 8px 24px;
+  margin: 0 0 14px;
+}
+.lg-legend dt {
+  color: var(--ink);
+}
+.lg-legend dd {
+  margin: 0;
+  color: var(--dim);
+}
+.lg-legend p {
+  margin: 0;
+  max-width: 90ch;
+  color: var(--dim);
+}
+
+@media (max-width: 720px) {
+  .lg-leagues {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lg-top .brand-subtitle {
+    display: none;
+  }
+}

@@ -161,3 +161,42 @@ export type ServerMessage =
   | { type: 'block'; block: BlockStat }
   | { type: 'block_patch'; round: number; patch: Partial<BlockStat> }
   | ({ type: 'log' } & LogLine);
+
+/**
+ * Validator ranking, as the valrank publisher sends it: one snapshot for everybody. A client finds its own node in
+ * it locally, so no request ever names a node.
+ */
+export interface RankSnapshot {
+  v: 1;
+  leagues: { id: string; name: string; min: number; max: number | null }[];
+  categories: { id: string; name: string; shows: 'rank' | 'ms' | 'days' | 'hours' }[];
+  /** Oldest first; the last one is the running season */
+  seasons: RankSeason[];
+}
+
+export interface RankSeason {
+  /** Monday the season starts on, UTC, YYYY-MM-DD */
+  wk: string;
+  computed: string;
+  final: boolean;
+  nodes: RankNode[];
+}
+
+/** [rank in league, nodes ranked in league, medal 0-3, home badge, OS badge, value or null] */
+export type RankCell = [number, number, number, number, number, number | null];
+
+export interface RankNode {
+  /** Last 12 characters of the node's telemetry GUID */
+  id: string;
+  /** Set when the node's telemetry name starts with @ */
+  alias?: string;
+  league: string;
+  home: number;
+  /** More than 4 voting accounts: ranked, no medals or badges */
+  over: number;
+  /** Only on nodes that hold an OS badge */
+  os?: string;
+  /** Days since the node first sent telemetry */
+  tenure: number;
+  c: Record<string, RankCell>;
+}

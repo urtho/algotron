@@ -21,6 +21,10 @@ export const HISTORY_BLOCKS = num(env.HISTORY_BLOCKS, 400);
 export const BACKFILL_BLOCKS = num(env.BACKFILL_BLOCKS, 240);
 /** avmonitor v2 base URL, e.g. ws://avmonitor.ts.v.nodely.io:8080. Unset: propagation comes from polling. */
 export const AVMONITOR_URL = env.AVMONITOR_URL ?? '';
+/** Bearer the valrank publisher sends with the ranking snapshot. Unset: POST /api/rank/ingest answers 404. */
+export const RANK_TOKEN = env.RANK_TOKEN ?? '';
+/** Development: a snapshot file to serve until the first POST arrives */
+export const RANK_FILE = env.RANK_FILE ?? '';
 export const DNS_SERVERS = (env.DNS_SERVERS ?? '1.1.1.1,1.0.0.1').split(',').map((s) => s.trim());
 
 export const appConfig: AppConfig = {
