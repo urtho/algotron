@@ -37,6 +37,9 @@ export function band(rank: number, field: number): 1 | 2 | 3 | 4 {
 }
 export const BAND_TEXT = ['', 'top 10%', 'top 25%', 'top half', 'lower half'];
 
+/** Whole years a node has been reporting: the tenure milestone it holds (0 = under a year) */
+export const tenureYears = (days: number) => Math.floor(days / 365);
+
 export function tenureText(days: number): string {
   const y = Math.floor(days / 365);
   return y > 0 ? `${y}y ${days - y * 365}d` : `${days}d`;

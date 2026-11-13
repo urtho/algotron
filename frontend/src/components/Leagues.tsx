@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RankCell, RankNode, RankSnapshot } from '../../../shared/types.ts';
-import { BAND_TEXT, band, findNode, loadMine, parseQuery, saveMine, tenureText } from '../rank.ts';
+import {
+  BAND_TEXT,
+  band,
+  findNode,
+  loadMine,
+  parseQuery,
+  saveMine,
+  tenureText,
+  tenureYears,
+} from '../rank.ts';
 import '../styles/leagues.css';
 
 const REFRESH_MS = 5 * 60_000;
@@ -12,9 +21,11 @@ const ABOUT: Record<string, string> = {
   soft: "How tightly a node's soft votes land around its own best time. Adjusted, so distance from the relays does not count.",
   cert: 'The same for cert votes.',
   late: "How rarely a soft vote arrives far behind the node's own best time.",
-  valid: 'Median time to validate a block, as the node reports it.',
+  valid:
+    'Median time to validate a block, as the node reports it. Ranked and badged, but it awards no medals: the same machines would win every week.',
   streak: 'Days in a row with every round reported and no catchup.',
-  upgrade: 'Hours from the newest release appearing on the network to this node running it.',
+  upgrade:
+    'Who ran the newest stable release first. The hours count from the moment the third node showed it. Medals are awarded once per release, in the season its seventh day falls in.',
 };
 
 const name = (n: RankNode) => n.alias ?? n.id;
@@ -126,6 +137,16 @@ export function Leagues() {
   }
 
   const cats = snap.categories;
+  // under each column head: what the column awards in the season on screen
+  const headNote = (medals?: string) => {
+    if (medals === 'never') return 'no medals';
+    if (medals !== 'release') return 'medals weekly';
+    const r = snap.release;
+    if (!r) return 'medals per release';
+    return r.medal_season === season.wk
+      ? `${r.version} · medals this season`
+      : `${r.version} · no medals this season`;
+  };
   // a snapshot from before the leagues had names shows their letters
   const title = (id: string) =>
     (snap.leagues.find((l) => l.id === id)?.title ?? `LEAGUE ${id}`).toUpperCase();
@@ -280,6 +301,7 @@ export function Leagues() {
                     >
                       {c.name.toUpperCase()}
                     </button>
+                    <span className="lg-th-note">{headNote(c.medals)}</span>
                   </th>
                 ))}
                 <th className="lg-th-tenure" title="Time since the node first sent telemetry">
@@ -315,7 +337,10 @@ export function Leagues() {
                   {cats.map((c) => (
                     <Cell key={c.id} cell={n.c[c.id]} unit={UNIT[c.shows]} />
                   ))}
-                  <td className="lg-tenure">{tenureText(n.tenure)}</td>
+                  <td className="lg-tenure" title={`${n.tenure} days since this node first sent telemetry`}>
+                    {tenureYears(n.tenure) > 0 && <span className="lg-years">{tenureYears(n.tenure)}Y</span>}
+                    {tenureText(n.tenure)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -337,9 +362,10 @@ export function Leagues() {
             <span className="lg-medal lg-medal-2">2</span>
             <span className="lg-medal lg-medal-3">3</span> mark the season's medals,{' '}
             <span className="lg-badge">H</span> the best home nodes and <span className="lg-badge">OS</span>{' '}
-            the best nodes on each operating system, across all leagues. Vote timing is shown as a place only,
-            never in milliseconds. To leave the ranking, put #norank in your node's telemetry name; to show a
-            name instead of an ID, start the telemetry name with @.
+            the best nodes on each operating system, across all leagues. Equal results share a place and a
+            medal. <span className="lg-years">1Y</span> marks each full year a node has been reporting. Vote
+            timing is shown as a place only, never in milliseconds. To leave the ranking, put #norank in your
+            node's telemetry name; to show a name instead of an ID, start the telemetry name with @.
           </p>
         </section>
       </div>

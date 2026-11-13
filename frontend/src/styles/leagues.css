@@ -369,6 +369,24 @@
   color: var(--green);
   border: 1px solid var(--green-dim);
 }
+.lg-th-note {
+  display: block;
+  padding: 0 10px 6px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: right;
+  color: var(--ink-muted);
+}
+.lg-years {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 14px;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  vertical-align: 1px;
+}
 .lg-tenure {
   text-align: right;
   color: var(--dim);

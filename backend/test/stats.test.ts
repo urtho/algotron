@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { mapper, type Plot } from '../../frontend/src/components/VoteCurves.tsx';
-import { band, findNode, parseQuery, tenureText } from '../../frontend/src/rank.ts';
+import { band, findNode, parseQuery, tenureText, tenureYears } from '../../frontend/src/rank.ts';
 import {
   boxSlots,
   curveScale,
@@ -183,6 +183,7 @@ describe('validator ranking', () => {
     expect([band(1, 50), band(5, 50), band(12, 50), band(25, 50), band(26, 50)]).toEqual([1, 1, 2, 3, 4]);
     expect(tenureText(30)).toBe('30d');
     expect(tenureText(400)).toBe('1y 35d');
+    expect([tenureYears(364), tenureYears(365), tenureYears(800)]).toEqual([0, 1, 2]);
   });
 
   test('the store takes a version 1 snapshot and refuses anything else', async () => {

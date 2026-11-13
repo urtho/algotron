@@ -170,7 +170,15 @@ export interface RankSnapshot {
   v: 1;
   /** `title` is the league's name (Spark, Arc ...); `name` describes its stake range */
   leagues: { id: string; name: string; title?: string; min: number; max: number | null }[];
-  categories: { id: string; name: string; shows: 'rank' | 'ms' | 'days' | 'hours' }[];
+  /** `medals`: awarded every season, once per release, or never (rank and badges only) */
+  categories: {
+    id: string;
+    name: string;
+    shows: 'rank' | 'ms' | 'days' | 'hours';
+    medals?: 'season' | 'release' | 'never';
+  }[];
+  /** The stable release the upgrade category is about; only the season `medal_season` awards its medals */
+  release?: { version: string; started: string; medal_season: string } | null;
   /** Oldest first; the last one is the running season */
   seasons: RankSeason[];
 }
