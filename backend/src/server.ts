@@ -52,7 +52,9 @@ const serve = (hostname: string): Bun.Server<undefined> =>
       '/api/rank/ingest': rankIngest,
       '/ws': (req, srv) => (srv.upgrade(req) ? undefined : new Response('WebSocket only', { status: 426 })),
     },
-    fetch: () => new Response('Not found', { status: 404 }),
+    // During a rolling update the new page can name a bundle that only the old container is asked for; that 404
+    // must not stick in Cloudflare or the browser (the zone's 4 h browser TTL would otherwise be applied to it).
+    fetch: () => new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } }),
     websocket: {
       perMessageDeflate: true,
       idleTimeout: 120,
