@@ -33,12 +33,16 @@ const serve = (hostname: string): Bun.Server<undefined> =>
       '/health': () => {
         const nodes = [...monitor.nodes.values()];
         const ok = monitor.tip > 0;
+        const synced = nodes.filter((n) => n.status === 'synced').length;
         return Response.json(
           {
             ok,
+            // a tip most nodes are not at is a wrong tip (Zabbix alerts on it); the status stays 200 so that
+            // Coolify's container health check, which calls this path, does not make Traefik drop the site
+            stuck: ok && synced < nodes.length / 4,
             tip: monitor.tip,
             nodes: nodes.length,
-            synced: nodes.filter((n) => n.status === 'synced').length,
+            synced,
             offline: nodes.filter((n) => n.status === 'offline').length,
             blocks: monitor.blocks.length,
             clients,
