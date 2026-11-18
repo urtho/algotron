@@ -1,5 +1,13 @@
 import { useEffect, useReducer } from 'react';
-import type { AppConfig, BlockStat, LogLine, NodeState, ServerMessage, Wave } from '../../shared/types.ts';
+import type {
+  AppConfig,
+  BlockStat,
+  LiveSwap,
+  LogLine,
+  NodeState,
+  ServerMessage,
+  Wave,
+} from '../../shared/types.ts';
 
 export interface LogEntry extends LogLine {
   id: number;
@@ -19,6 +27,9 @@ export interface AppState {
   logs: LogEntry[];
   /** Newest finished round's propagation, replayed on the globe and the wall */
   wave?: Wave;
+  /** Newest routed swap from the swap feed, and a counter that moves with every one */
+  swap?: LiveSwap;
+  swapSeq: number;
 }
 
 type Action = { type: 'open' } | { type: 'close' } | { type: 'msg'; msg: ServerMessage };
@@ -45,6 +56,7 @@ const initial: AppState = {
   tip: 0,
   tipAt: 0,
   logs: [],
+  swapSeq: 0,
 };
 
 function insertBlock(blocks: BlockStat[], b: BlockStat): BlockStat[] {
@@ -97,6 +109,8 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         blocks: state.blocks.map((b) => (b.round === msg.round ? { ...b, ...msg.patch } : b)),
       };
+    case 'swap':
+      return { ...state, swap: msg.swap, swapSeq: state.swapSeq + 1 };
     case 'log': {
       const logs = [...state.logs, entry(msg)];
       return { ...state, logs: logs.length > MAX_LOGS ? logs.slice(-MAX_LOGS) : logs };

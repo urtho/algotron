@@ -165,7 +165,37 @@ export type ServerMessage =
   | { type: 'wave'; wave: Wave }
   | { type: 'block'; block: BlockStat }
   | { type: 'block_patch'; round: number; patch: Partial<BlockStat> }
-  | ({ type: 'log' } & LogLine);
+  | ({ type: 'log' } & LogLine)
+  /** A routed swap that just happened on chain (swap feed publisher, about 4 min behind the chain) */
+  | { type: 'swap'; swap: LiveSwap };
+
+/** One hop of a routed swap: asset in → asset out through one pool, valued in USD */
+export interface LiveHop {
+  a: string;
+  b: string;
+  usd: number;
+  /** TINYMAN, PACT, PACT STABLE, HUMBLE, FOLKS ... */
+  venue: string;
+}
+
+/**
+ * A routed swap as the swap feed publisher sends it (from mainnet_agg.swaps on dw2): the swapper's net input and
+ * output and every hop. No account address.
+ */
+export interface LiveSwap {
+  txid: string;
+  round: number;
+  /** Unix seconds of the block */
+  ts: number;
+  /** Router name, e.g. Haystack */
+  router: string;
+  inSym: string;
+  outSym: string;
+  inAmt: number;
+  outAmt: number;
+  usd: number;
+  hops: LiveHop[];
+}
 
 /**
  * Validator ranking, as the valrank publisher sends it: one snapshot for everybody. A client finds its own node in

@@ -29,7 +29,10 @@ export const AVMONITOR_URL = env.AVMONITOR_URL ?? '';
 const avPublic = env.AVMONITOR_PUBLIC_URL?.trim() ?? '';
 export const AVMONITOR_PUBLIC_URL =
   avPublic === 'off' ? '' : avPublic || (AVMONITOR_URL.startsWith('wss://') ? AVMONITOR_URL : '');
-/** Bearer the valrank publisher sends with the ranking snapshot. Unset: POST /api/rank/ingest answers 404. */
+/**
+ * Bearer the publishers on etl send: the valrank ranking snapshot and the swap feed. Unset: POST /api/rank/ingest
+ * and /api/swaps/ingest answer 404.
+ */
 export const RANK_TOKEN = env.RANK_TOKEN ?? '';
 /** Development: a snapshot file to serve until the first POST arrives */
 export const RANK_FILE = env.RANK_FILE ?? '';

@@ -29,6 +29,10 @@ Version 2 adds realtime chain statistics:
 - **Proposer ring, moments**: the current proposer on a ring in the globe's corner, and a
   banner for bursts, slow rounds and nodes that drop or recover
 - **Status**: synced / lagging / behind / no answer (with the reason), IPv6 reachability per host
+- **Swap pop-ups**: every routed mainnet swap (Haystack, LiquiHog, Folks, Pact, Tinyman routers ...) pops up over the
+  dashboard as a circuit board: identity discs for the input and output assets, one lane per main path with its share
+  and DEX, the small hops on a tail bus. Fed by the swap feed publisher on etl (`POST /api/swaps/ingest`, bearer
+  `RANK_TOKEN`), about 4 minutes behind the chain; the SWAPS switch turns them off per browser
 - **Boot terminal**: Encom-style discovery sequence on first load
 - **Permissionless**: DNS SRV records and the public block endpoint are all it needs
 

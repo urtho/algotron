@@ -5,6 +5,7 @@ import { AVMONITOR_URL, appConfig, HOST, PORT, RANK_FILE, RANK_TOKEN, REDISCOVER
 import { discover } from './discovery.ts';
 import { Monitor } from './monitor.ts';
 import { RankStore } from './rank.ts';
+import { SwapStore } from './swaps.ts';
 
 const TOPIC = 'feed';
 const dev = process.env.NODE_ENV !== 'production';
@@ -18,10 +19,15 @@ if (RANK_FILE) {
 const monitor = new Monitor((msg: ServerMessage) => {
   server.publish(TOPIC, JSON.stringify(msg));
 });
+const swaps = new SwapStore(RANK_TOKEN, (swap) => {
+  const msg: ServerMessage = { type: 'swap', swap };
+  server.publish(TOPIC, JSON.stringify(msg));
+});
 
 // one snapshot for everybody: nobody asks about a single node
 const rankLatest = { GET: (req: Request) => rank.latest(req) };
 const rankIngest = { POST: (req: Request) => rank.ingest(req) };
+const swapIngest = { POST: (req: Request) => swaps.ingest(req) };
 
 const serve = (hostname: string): Bun.Server<undefined> =>
   Bun.serve({
@@ -47,6 +53,7 @@ const serve = (hostname: string): Bun.Server<undefined> =>
             blocks: monitor.blocks.length,
             clients,
             rank: rank.health(),
+            swaps: swaps.health(),
           },
           { status: ok || nodes.length === 0 ? 200 : 503 },
         );
@@ -54,6 +61,8 @@ const serve = (hostname: string): Bun.Server<undefined> =>
       '/api/state': () => Response.json(monitor.hello()),
       '/api/rank/latest': rankLatest,
       '/api/rank/ingest': rankIngest,
+      '/api/swaps/ingest': swapIngest,
+      '/api/swaps/latest': () => swaps.latest(),
       '/ws': (req, srv) => (srv.upgrade(req) ? undefined : new Response('WebSocket only', { status: 426 })),
     },
     // During a rolling update the new page can name a bundle that only the old container is asked for; that 404

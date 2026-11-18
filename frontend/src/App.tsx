@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BootTerminal } from './components/BootTerminal.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { Leagues, VerifyPage } from './components/Leagues.tsx';
+import { SwapPopup } from './components/SwapPopup.tsx';
 import { VERIFY_HASH } from './own.ts';
 import { useFeed } from './state.ts';
 
@@ -40,6 +41,7 @@ export function App() {
       >
         <Dashboard state={state} />
       </div>
+      {booted && !leagues && !verify && <SwapPopup swap={state.swap} />}
       {leagues && <Leagues votes={!!state.config.avstream} />}
       {verify && <VerifyPage hash={verify} />}
     </div>

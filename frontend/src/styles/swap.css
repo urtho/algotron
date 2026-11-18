@@ -1,0 +1,94 @@
+/* Swap pop-up: a routed swap drawn as its circuit board over the dashboard */
+.swp-back {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 6, 15, 0.55);
+  backdrop-filter: blur(2px);
+  animation: swp-fade 0.25s ease-out;
+  cursor: pointer;
+}
+.swp-panel {
+  width: min(1180px, 94vw);
+  border: 1px solid var(--border2);
+  background: #00060f;
+  box-shadow:
+    0 0 0 1px rgba(0, 204, 255, 0.15),
+    0 0 40px rgba(0, 204, 255, 0.18);
+  animation: swp-in 0.3s ease-out;
+}
+.swp-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #9fe8d2;
+}
+.swp-router {
+  font-family: Oxanium, var(--font);
+  color: var(--cyan);
+  letter-spacing: 0.24em;
+}
+.swp-usd {
+  font-family: Oxanium, var(--font);
+  font-size: 17px;
+  color: #e6fff7;
+}
+.swp-tx {
+  margin-left: auto;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.swp-tx:hover {
+  color: var(--cyan);
+}
+.swp-svg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.swp-switch {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 901;
+  background: var(--bg2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font: 11px var(--font);
+  letter-spacing: 0.14em;
+  padding: 3px 9px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.swp-switch.on {
+  color: var(--cyan);
+  border-color: var(--border2);
+}
+.swp-switch:hover,
+.swp-switch:focus-visible {
+  opacity: 1;
+}
+@keyframes swp-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes swp-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swp-back,
+  .swp-panel {
+    animation: none;
+  }
+}
