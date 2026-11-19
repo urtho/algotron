@@ -32,7 +32,8 @@ Version 2 adds realtime chain statistics:
 - **Swap pop-ups**: every routed mainnet swap (Haystack, LiquiHog, Folks, Pact, Tinyman routers ...) pops up over the
   dashboard as a circuit board: identity discs for the input and output assets, one lane per main path with its share
   and DEX, the small hops on a tail bus. Fed by the swap feed publisher on etl (`POST /api/swaps/ingest`, bearer
-  `RANK_TOKEN`), about 4 minutes behind the chain; the SWAPS switch turns them off per browser
+  `RANK_TOKEN`), about 4 minutes behind the chain: 1 s at rest, 6 s of animation, 3 s holding the result, the widest
+  waiting swap next; the SWAPS switch turns them off per browser
 - **Boot terminal**: Encom-style discovery sequence on first load
 - **Permissionless**: DNS SRV records and the public block endpoint are all it needs
 

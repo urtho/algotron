@@ -41,7 +41,7 @@ export function App() {
       >
         <Dashboard state={state} />
       </div>
-      {booted && !leagues && !verify && <SwapPopup swap={state.swap} />}
+      {booted && !leagues && !verify && <SwapPopup swaps={state.swaps} seq={state.swapSeq} />}
       {leagues && <Leagues votes={!!state.config.avstream} />}
       {verify && <VerifyPage hash={verify} />}
     </div>

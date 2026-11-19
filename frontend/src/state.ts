@@ -27,8 +27,8 @@ export interface AppState {
   logs: LogEntry[];
   /** Newest finished round's propagation, replayed on the globe and the wall */
   wave?: Wave;
-  /** Newest routed swap from the swap feed, and a counter that moves with every one */
-  swap?: LiveSwap;
+  /** The newest routed swaps from the swap feed (at most MAX_SWAPS), and how many arrived in all */
+  swaps: LiveSwap[];
   swapSeq: number;
 }
 
@@ -36,6 +36,7 @@ type Action = { type: 'open' } | { type: 'close' } | { type: 'msg'; msg: ServerM
 
 const MAX_BLOCKS = 400;
 const MAX_LOGS = 300;
+const MAX_SWAPS = 10;
 let logSeq = 0;
 const entry = (l: LogLine): LogEntry => ({ id: logSeq++, message: l.message, level: l.level, ts: l.ts });
 
@@ -56,6 +57,7 @@ const initial: AppState = {
   tip: 0,
   tipAt: 0,
   logs: [],
+  swaps: [],
   swapSeq: 0,
 };
 
@@ -110,7 +112,7 @@ function reducer(state: AppState, action: Action): AppState {
         blocks: state.blocks.map((b) => (b.round === msg.round ? { ...b, ...msg.patch } : b)),
       };
     case 'swap':
-      return { ...state, swap: msg.swap, swapSeq: state.swapSeq + 1 };
+      return { ...state, swaps: [...state.swaps, msg.swap].slice(-MAX_SWAPS), swapSeq: state.swapSeq + 1 };
     case 'log': {
       const logs = [...state.logs, entry(msg)];
       return { ...state, logs: logs.length > MAX_LOGS ? logs.slice(-MAX_LOGS) : logs };

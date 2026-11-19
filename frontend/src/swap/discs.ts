@@ -2,7 +2,7 @@ import type { Board, Flow } from './board.ts';
 
 /**
  * The identity-disc treatment of a swap board, drawn as one SVG string per frame (viewBox 1600 × 900).
- * p is the progress of the 3 s animation: 0-18 % the input charges, 18-78 % the value moves column by column,
+ * p is the progress of the animation (6 s in the pop-up): 0-18 % the input charges, 18-78 % the value moves column by column,
  * 78-100 % it lands; above 1 the board rests. t is the wall clock in seconds, for the spinning rings.
  */
 
