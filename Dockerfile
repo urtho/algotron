@@ -1,5 +1,5 @@
 # Algotron: one Bun process serves the dashboard, /ws and /health.
-FROM oven/bun:1.4.3-alpine AS build
+FROM oven/bun:1.4.5-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
@@ -9,7 +9,7 @@ COPY backend ./backend
 COPY frontend ./frontend
 RUN bun run build
 
-FROM oven/bun:1.4.3-alpine
+FROM oven/bun:1.4.5-alpine
 WORKDIR /app
 # HOST=:: listens on IPv4 and IPv6: platform health checks call "localhost", which resolves to ::1 first
 ENV NODE_ENV=production PORT=3001 HOST=::
